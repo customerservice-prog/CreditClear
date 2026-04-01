@@ -11,6 +11,7 @@ const rawBodyRoutes = new Set(['/api/stripe-webhook', '/api/webhook'])
 
 const apiHandlers = {
   '/api/bootstrap-user': () => import('./api/bootstrap-user.js'),
+  '/api/create-account': () => import('./api/create-account.js'),
   '/api/create-checkout': () => import('./api/create-checkout.js'),
   '/api/create-portal': () => import('./api/create-portal.js'),
   '/api/generate-dispute-draft': () => import('./api/generate-dispute-draft.js'),

@@ -35,6 +35,28 @@ export async function bootstrapUserRequest(accessToken: string) {
   return apiRequest<{ user: AppUser }>('/api/bootstrap-user', accessToken)
 }
 
+export async function createAccountRequest(body: {
+  email: string
+  name: string
+  password: string
+}) {
+  const response = await fetch('/api/create-account', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  const payload = (await response.json().catch(() => ({}))) as JsonResponse & { created?: boolean }
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Unable to create your account.')
+  }
+
+  return payload
+}
+
 export async function saveUploadMetadataRequest(
   accessToken: string,
   body: {

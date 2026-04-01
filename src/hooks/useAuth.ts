@@ -1,6 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useState } from 'react'
-import { bootstrapUserRequest } from '../lib/apiClient'
+import { bootstrapUserRequest, createAccountRequest } from '../lib/apiClient'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
 
@@ -137,26 +137,16 @@ export function useAuth() {
   }, [refreshAppUser])
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
-    const supabase = requireSupabase()
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: name },
-        emailRedirectTo: `${window.location.origin}/app`,
-      },
-    })
+    await createAccountRequest({ email, name, password })
 
-    if (error) {
-      throw error
+    const signInResult = await signIn(email, password)
+
+    if (signInResult.user && signInResult.session?.access_token) {
+      await refreshAppUser(signInResult.user, signInResult.session.access_token)
     }
 
-    if (data.user && data.session?.access_token) {
-      await refreshAppUser(data.user, data.session.access_token)
-    }
-
-    return data
-  }, [refreshAppUser])
+    return signInResult
+  }, [refreshAppUser, signIn])
 
   const signInWithGoogle = useCallback(async () => {
     const supabase = requireSupabase()
