@@ -1,0 +1,1155 @@
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { AuthModal } from './components/AuthModal'
+import { useAuthContext } from './context/useAuthContext'
+import { useSubscriptionContext } from './context/useSubscriptionContext'
+import { createCheckoutRequest, createPortalRequest } from './lib/apiClient'
+import { trackEvent, trackPageView } from './lib/analytics'
+import { streamGeneratedLetters } from './lib/claude'
+import { createInitialState } from './lib/constants'
+import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { buildLetterFileName } from './lib/formatters'
+import { captureClientError } from './lib/monitoring'
+import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
+import { useDisputes } from './hooks/useDisputes'
+import { useUploads } from './hooks/useUploads'
+import type { AuthTab, DisputeDetail, Letter } from './types'
+
+const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
+const DashboardPage = lazy(() =>
+  import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
+)
+const DisputeDetailPage = lazy(() =>
+  import('./pages/DisputeDetailPage').then((module) => ({ default: module.DisputeDetailPage })),
+)
+const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
+const LegalPage = lazy(() => import('./pages/LegalPage').then((module) => ({ default: module.LegalPage })))
+const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })))
+const NewDisputePage = lazy(() => import('./pages/App').then((module) => ({ default: module.AppPage })))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })))
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
+const SignupPage = lazy(() => import('./pages/SignupPage').then((module) => ({ default: module.SignupPage })))
+
+const PAGE_META: Record<string, { description: string; title: string }> = {
+  '/': {
+    description: 'Securely organize credit report issues, upload supporting documents, and review AI-assisted dispute drafts.',
+    title: 'CreditClear AI | Review-Ready Credit Dispute Workflow',
+  },
+  '/billing': {
+    description: 'Review your CreditClear trial status, subscription access, renewal timing, and billing options.',
+    title: 'Billing | CreditClear AI',
+  },
+  '/dashboard': {
+    description: 'View saved disputes, start a new workflow, and monitor your current plan status.',
+    title: 'Dashboard | CreditClear AI',
+  },
+  '/disclaimer': {
+    description: 'Important limitations and review responsibilities for CreditClear AI outputs.',
+    title: 'Disclaimer | CreditClear AI',
+  },
+  '/login': {
+    description: 'Sign in to access your saved disputes, billing details, and draft-generation workflow.',
+    title: 'Log In | CreditClear AI',
+  },
+  '/privacy': {
+    description: 'Learn how CreditClear stores account data, billing records, and uploaded files.',
+    title: 'Privacy Policy | CreditClear AI',
+  },
+  '/settings': {
+    description: 'Manage your account details and session settings for CreditClear.',
+    title: 'Settings | CreditClear AI',
+  },
+  '/signup': {
+    description: 'Create your CreditClear account to start your guided dispute review workflow.',
+    title: 'Sign Up | CreditClear AI',
+  },
+  '/terms': {
+    description: 'Read the terms governing CreditClear subscriptions, uploads, and AI-assisted drafts.',
+    title: 'Terms Of Use | CreditClear AI',
+  },
+}
+
+function AppRoutes() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const {
+    appUser,
+    authUser,
+    loading: sessionLoading,
+    refreshAppUser,
+    session,
+    signIn,
+    signInWithGoogle,
+    signOut: signOutAuth,
+    signUp,
+  } = useAuthContext()
+  const subscription = useSubscriptionContext()
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authTab, setAuthTab] = useState<AuthTab>('signup')
+  const [authError, setAuthError] = useState('')
+  const [authNotice, setAuthNotice] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [billingLoading, setBillingLoading] = useState(false)
+  const [billingMessage, setBillingMessage] = useState('')
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [disputeDetail, setDisputeDetail] = useState<DisputeDetail | null>(null)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [signupName, setSignupName] = useState('')
+  const [signupEmail, setSignupEmail] = useState('')
+  const [signupPassword, setSignupPassword] = useState('')
+  const [signupAcceptedTerms, setSignupAcceptedTerms] = useState(false)
+  const [appState, setAppState] = useState(createInitialState)
+  const letterSaveTimers = useRef<Record<string, number>>({})
+  const { disputes, error: disputesError, getDetail, loading: disputesLoading, refresh: refreshDisputes, setDisputes, updateLetterText } = useDisputes(authUser?.id)
+  const { uploadFiles } = useUploads(authUser?.id, session?.access_token)
+
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAuthModalOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [])
+
+  useEffect(() => {
+    const meta = location.pathname.startsWith('/disputes/')
+      ? {
+          description: 'Review a saved CreditClear dispute, edit draft letters, and download documents.',
+          title: 'Saved Dispute | CreditClear AI',
+        }
+      : location.pathname === '/disputes/new'
+        ? {
+            description: 'Complete the guided credit dispute workflow, upload files, and generate editable drafts.',
+            title: 'New Dispute | CreditClear AI',
+          }
+        : PAGE_META[location.pathname] || {
+            description: 'CreditClear AI helps organize report issues and prepare user-reviewed dispute drafts.',
+            title: 'CreditClear AI',
+          }
+
+    document.title = meta.title
+    const descriptionTag = document.querySelector('meta[name="description"]')
+    if (descriptionTag) {
+      descriptionTag.setAttribute('content', meta.description)
+    }
+    trackPageView(location.pathname + location.search, meta.title)
+  }, [location.pathname, location.search])
+
+  useEffect(() => {
+    const hasUnsavedProgress =
+      appState.analyzing ||
+      appState.files.length > 0 ||
+      appState.letters.length > 0 ||
+      Boolean(appState.info.firstName || appState.info.lastName || appState.info.email)
+
+    if (!hasUnsavedProgress) {
+      return
+    }
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [appState])
+
+  useEffect(
+    () => () => {
+      Object.values(letterSaveTimers.current).forEach((timer) => window.clearTimeout(timer))
+    },
+    [],
+  )
+
+  const userDisplayName = useMemo(() => {
+    const fullName = appUser?.name || authUser?.user_metadata?.full_name || authUser?.email || 'User'
+    return String(fullName).split(' ')[0] || 'User'
+  }, [appUser, authUser])
+
+  useEffect(() => {
+    if (!authUser) {
+      return
+    }
+
+    const fullName = appUser?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || ''
+    const parts = String(fullName).trim().split(/\s+/).filter(Boolean)
+    setAppState((previous) => ({
+      ...previous,
+      info: {
+        ...previous.info,
+        email: previous.info.email || authUser.email || '',
+        firstName: previous.info.firstName || parts[0] || '',
+        lastName: previous.info.lastName || parts.slice(1).join(' ') || '',
+      },
+    }))
+  }, [appUser, authUser])
+
+  useEffect(() => {
+    if (!authUser || !location.search.includes('checkout=')) {
+      return
+    }
+
+    const params = new URLSearchParams(location.search)
+    const status = params.get('checkout')
+    params.delete('checkout')
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true },
+    )
+
+    if (status === 'cancelled') {
+      setBillingMessage('Checkout was cancelled. Your saved disputes are still available.')
+      return
+    }
+
+    if (status === 'success') {
+      setBillingMessage('Confirming your subscription status...')
+      void (async () => {
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await wait(1500)
+          const latest = await refreshAppUser(authUser)
+          if (latest?.subscription_status === 'active') {
+            setBillingMessage('')
+            break
+          }
+
+          if (attempt === 7) {
+            setBillingMessage('Your payment was received, but billing is still syncing. Refresh this page or open Billing again in a moment.')
+          }
+        }
+      })()
+    }
+  }, [authUser, location.pathname, location.search, navigate, refreshAppUser])
+
+  function handleWorkspaceTabChange(tab: 'generator' | 'disputes') {
+    setAppState((previous) => ({ ...previous, tab }))
+    navigate('/disputes/new')
+  }
+
+  function openAuth(nextTab: AuthTab) {
+    if (!isSupabaseConfigured) {
+      setBillingMessage('Add your Supabase environment variables before using authentication.')
+      return
+    }
+
+    setAuthError('')
+    setAuthNotice('')
+    setAuthTab(nextTab)
+    setAuthModalOpen(true)
+  }
+
+  function closeAuth() {
+    setAuthModalOpen(false)
+    setAuthError('')
+    setAuthNotice('')
+  }
+
+  async function beginCheckout() {
+    if (!isSupabaseConfigured || !session?.access_token) {
+      setBillingMessage('Stripe checkout is unavailable right now.')
+      return
+    }
+
+    try {
+      setBillingLoading(true)
+      setBillingMessage('')
+      trackEvent('begin_checkout', { location: location.pathname })
+      const response = await createCheckoutRequest(session.access_token)
+      window.location.assign(response.url)
+    } catch (error) {
+      captureClientError(error, { flow: 'checkout' })
+      setBillingMessage(error instanceof Error ? error.message : 'Unable to start Stripe checkout.')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  async function beginPortal() {
+    if (!isSupabaseConfigured || !session?.access_token) {
+      setBillingMessage('Billing management is unavailable right now.')
+      return
+    }
+
+    try {
+      setBillingLoading(true)
+      setBillingMessage('')
+      trackEvent('open_billing_portal', { location: location.pathname })
+      const response = await createPortalRequest(session.access_token)
+      window.location.assign(response.url)
+    } catch (error) {
+      captureClientError(error, { flow: 'billing_portal' })
+      setBillingMessage(error instanceof Error ? error.message : 'Unable to open billing management.')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  async function handleLogin() {
+    if (!isSupabaseConfigured) {
+      setAuthError('Supabase is not configured yet.')
+      return
+    }
+
+    if (!loginEmail.trim() || !loginPassword) {
+      setAuthError('Please enter your email and password.')
+      return
+    }
+
+    try {
+      setAuthLoading(true)
+      setAuthError('')
+      setAuthNotice('')
+      await signIn(loginEmail.trim(), loginPassword)
+      trackEvent('login_success')
+      closeAuth()
+      navigate('/dashboard')
+    } catch (error) {
+      captureClientError(error, { flow: 'login' })
+      setAuthError(error instanceof Error ? error.message : 'Unable to sign in.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function handleSignup() {
+    if (!isSupabaseConfigured) {
+      setAuthError('Supabase is not configured yet.')
+      return
+    }
+
+    if (!signupName.trim() || !signupEmail.trim() || !signupPassword) {
+      setAuthError('Please fill in all fields.')
+      return
+    }
+
+    if (signupPassword.length < 8) {
+      setAuthError('Password must be at least 8 characters.')
+      return
+    }
+
+    if (!signupAcceptedTerms) {
+      setAuthError('Please accept the Terms and Privacy Policy to create your account.')
+      return
+    }
+
+    if (!/\S+@\S+\.\S+/.test(signupEmail.trim())) {
+      setAuthError('Please enter a valid email address.')
+      return
+    }
+
+    try {
+      setAuthLoading(true)
+      setAuthError('')
+      setAuthNotice('')
+      const data = await signUp(signupName.trim(), signupEmail.trim(), signupPassword)
+      if (!data.session || !data.user) {
+        setAuthNotice('Check your email to confirm your account, then sign in to start your trial.')
+        return
+      }
+      trackEvent('signup_success')
+      closeAuth()
+      navigate('/dashboard')
+    } catch (error) {
+      captureClientError(error, { flow: 'signup' })
+      setAuthError(error instanceof Error ? error.message : 'Unable to create your account.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function handleSocial() {
+    if (!isSupabaseConfigured) {
+      setAuthError('Supabase is not configured yet.')
+      return
+    }
+
+    try {
+      setAuthLoading(true)
+      await signInWithGoogle()
+    } catch (error) {
+      captureClientError(error, { flow: 'google_auth' })
+      setAuthError(error instanceof Error ? error.message : 'Unable to start Google sign-in.')
+      setAuthLoading(false)
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!isSupabaseConfigured) {
+      setAuthError('Supabase is not configured yet.')
+      return
+    }
+
+    if (!loginEmail.trim()) {
+      setAuthError('Enter your email address first so we can send a reset link.')
+      return
+    }
+
+    try {
+      setAuthLoading(true)
+      setAuthError('')
+      setAuthNotice('')
+      const supabase = requireSupabase()
+      const redirectTo =
+        typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined
+      const result = await supabase.auth.resetPasswordForEmail(loginEmail.trim(), { redirectTo })
+
+      if (result.error) {
+        throw result.error
+      }
+
+      setAuthNotice('Password reset email sent. Check your inbox and spam folder for the link.')
+    } catch (error) {
+      captureClientError(error, { flow: 'forgot_password' })
+      setAuthError(error instanceof Error ? error.message : 'Unable to send a reset email.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function signOutUser() {
+    await signOutBase()
+    setBillingMessage('')
+    setSignupAcceptedTerms(false)
+    setAppState(createInitialState())
+    navigate('/')
+  }
+
+  function resetApp() {
+    const nextState = createInitialState()
+
+    if (authUser) {
+      const fullName = appUser?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || ''
+      const parts = String(fullName).trim().split(/\s+/).filter(Boolean)
+      nextState.info.firstName = parts[0] || ''
+      nextState.info.lastName = parts.slice(1).join(' ') || ''
+      nextState.info.email = authUser.email || ''
+    }
+
+    setAppState(nextState)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function startAnalysis() {
+    if (!session?.access_token) {
+      setBillingMessage('Please sign in again before generating letters.')
+      return
+    }
+
+    const infoError = validateAppInfo(appState.info)
+    if (infoError) {
+      setBillingMessage(infoError)
+      return
+    }
+
+    setAppState((previous) => ({
+      ...previous,
+      analyzing: true,
+      analysisStep: 0,
+      openLetter: null,
+      letters: [],
+      aiSummary: '',
+      recommendations: [],
+      streamMessage: 'Uploading your report and preparing Claude...',
+    }))
+
+    try {
+      trackEvent('generation_started', {
+        agencies: appState.agencies.length,
+        files: appState.files.length,
+        issues: appState.issues.length,
+      })
+      const collectedLetters: Letter[] = []
+
+      await streamGeneratedLetters({
+        accessToken: session.access_token,
+        agencies: appState.agencies,
+        files: appState.files,
+        info: appState.info,
+        issues: appState.issues,
+        onEvent: (event) => {
+          if (event.type === 'status') {
+            setAppState((previous) => ({
+              ...previous,
+              analysisStep: Math.min(previous.analysisStep + 1, 5),
+              streamMessage: event.message || previous.streamMessage,
+            }))
+          }
+
+          if (event.type === 'letter' && event.letter) {
+            collectedLetters.push(event.letter)
+            setAppState((previous) => ({
+              ...previous,
+              letters: [...previous.letters, event.letter!],
+              streamMessage: `Generated ${collectedLetters.length} of ${appState.issues.length * (appState.agencies.length || 1)} letters...`,
+            }))
+          }
+
+          if (event.type === 'complete') {
+            const letters = event.letters?.length ? event.letters : collectedLetters
+            setAppState((previous) => ({
+              ...previous,
+              analysisStep: 5,
+              analyzing: false,
+              aiSummary: event.summary || previous.aiSummary,
+              letters,
+              recommendations: event.recommendations || [],
+              step: 4,
+              streamMessage: '',
+            }))
+            trackEvent('generation_completed', { letters: letters.length })
+            void saveDispute(letters, event.summary || '')
+          }
+
+          if (event.type === 'error') {
+            throw new Error(event.message || 'Letter generation failed.')
+          }
+        },
+      })
+    } catch (error) {
+      captureClientError(error, { flow: 'generation' })
+      setAppState((previous) => ({
+        ...previous,
+        analyzing: false,
+        streamMessage: '',
+      }))
+      setBillingMessage(error instanceof Error ? error.message : 'Unable to generate letters.')
+    }
+  }
+
+  async function saveDispute(letters: Letter[], summary: string) {
+    if (!authUser || !isSupabaseConfigured) {
+      return
+    }
+
+    const supabase = requireSupabase()
+    const payload = {
+      ai_summary: summary || null,
+      bureau_targets: appState.agencies,
+      issue_categories: appState.issues,
+      personal_info: appState.info,
+      status: 'draft_ready',
+      title: `${appState.issues.length} issue${appState.issues.length === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`,
+      user_id: authUser.id,
+    }
+    const inserted = await supabase
+      .from('disputes')
+      .insert(payload)
+      .select('id, user_id, title, status, bureau_targets, issue_categories, personal_info, ai_summary, created_at, updated_at')
+      .single()
+
+    if (inserted.error || !inserted.data) {
+      setBillingMessage('Your letters were generated, but the dispute could not be saved. Please try again.')
+      return
+    }
+
+    const disputeId = inserted.data.id
+    const letterRows = letters.map((letter) => ({
+      bureau: letter.agency,
+      dispute_id: disputeId,
+      draft_text: letter.text,
+      editable_text: letter.text,
+      issue_type: letter.issue,
+      user_id: authUser.id,
+    }))
+
+    const lettersInsert = await supabase.from('letters').insert(letterRows)
+    if (lettersInsert.error) {
+      await supabase.from('disputes').delete().eq('id', disputeId)
+      setBillingMessage('Your drafts were generated, but saving them failed. Please try again.')
+      return
+    }
+
+    if (appState.files.length) {
+      const uploadsUpdate = await supabase
+        .from('uploads')
+        .update({ dispute_id: disputeId })
+        .in(
+          'id',
+          appState.files.map((file) => file.id).filter(Boolean),
+        )
+
+      if (uploadsUpdate.error) {
+        setBillingMessage('Your dispute was saved, but some uploaded files could not be linked yet.')
+      }
+    }
+
+    setAppState((previous) => ({ ...previous, currentDisputeId: disputeId }))
+    setDisputes((previous) => [inserted.data as never, ...previous])
+    trackEvent('dispute_saved', { letters: letters.length, uploads: appState.files.length })
+  }
+
+  async function addFiles(files: FileList | null) {
+    try {
+      const nextFiles = await uploadFiles(files, appState.currentDisputeId ?? null)
+      setAppState((previous) => ({
+        ...previous,
+        files: [...previous.files, ...nextFiles],
+      }))
+      if (nextFiles.length) {
+        trackEvent('upload_completed', { count: nextFiles.length })
+      }
+    } catch (error) {
+      captureClientError(error, { flow: 'upload' })
+      setBillingMessage(error instanceof Error ? error.message : 'Unable to upload files.')
+    }
+  }
+
+  async function saveLetterEdit(letterId: string, text: string) {
+    const sanitizedText = sanitizeEditableLetterText(text)
+
+    setAppState((previous) => ({
+      ...previous,
+      letters: previous.letters.map((letter) => (letter.id === letterId ? { ...letter, text: sanitizedText } : letter)),
+    }))
+
+    setDisputeDetail((previous) =>
+      previous
+        ? {
+            ...previous,
+            letters: previous.letters.map((letter) => (letter.id === letterId ? { ...letter, text: sanitizedText } : letter)),
+          }
+        : previous,
+    )
+
+    window.clearTimeout(letterSaveTimers.current[letterId])
+    letterSaveTimers.current[letterId] = window.setTimeout(async () => {
+      try {
+        await updateLetterText(letterId, sanitizedText)
+      } catch (error) {
+        captureClientError(error, { flow: 'letter_save' })
+        setBillingMessage(error instanceof Error ? error.message : 'Unable to save your letter edit.')
+      }
+    }, 500)
+  }
+
+  async function loadDispute(recordId: string) {
+    setDetailLoading(true)
+    try {
+      const detail = await getDetail(recordId)
+      setDisputeDetail(detail)
+      navigate(`/disputes/${recordId}`)
+    } catch {
+      setDisputeDetail(null)
+      setBillingMessage('That dispute could not be loaded.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  function loadDisputeIntoGenerator(detail: DisputeDetail) {
+    setAppState((previous) => ({
+      ...previous,
+      tab: 'generator',
+      currentDisputeId: detail.id,
+      step: 4,
+      analyzing: false,
+      aiSummary: detail.ai_summary || '',
+      openLetter: null,
+      agencies: detail.bureau_targets.filter(isAgencyId),
+      files: detail.uploads.map((upload) => ({
+        dispute_id: upload.dispute_id,
+        file_name: upload.file_name,
+        file_path: upload.file_path,
+        id: upload.id,
+        name: upload.file_name,
+        size: upload.file_size,
+        type: upload.mime_type,
+      })),
+      info: detail.personal_info,
+      issues: detail.issue_categories.filter(isIssueId),
+      letters: detail.letters as Letter[],
+    }))
+    navigate('/disputes/new')
+  }
+
+  async function signOutBase() {
+    try {
+      await signOutAuth()
+      trackEvent('sign_out')
+    } catch (error) {
+      captureClientError(error, { flow: 'sign_out' })
+      setBillingMessage(error instanceof Error ? error.message : 'Unable to sign out.')
+    }
+  }
+
+  function downloadLetter(letterText: string, fileName: string) {
+    const blob = new Blob([letterText], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+  }
+
+  if (sessionLoading) {
+    return (
+      <>
+        <Background />
+        <div className="page active">
+          <div className="hero">
+            <div className="hero-badge">
+              <div className="pulse-dot"></div> Loading Account
+            </div>
+            <h1>
+              Preparing Your <em>Workspace</em>
+            </h1>
+            <p className="hero-sub">Syncing your session, profile, and billing access.</p>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <Background />
+      <Suspense
+        fallback={
+          <div className="page active">
+            <div className="hero">
+              <div className="hero-badge">
+                <div className="pulse-dot"></div> Loading Page
+              </div>
+              <h1>
+                Preparing Your Next <em>Step</em>
+              </h1>
+              <p className="hero-sub">Loading the secure workspace view.</p>
+            </div>
+          </div>
+        }
+      >
+        <Routes>
+        <Route path="/" element={<HomePage onOpenAuth={openAuth} onScrollTo={scrollToSection} />} />
+        <Route
+          path="/privacy"
+          element={
+            <LegalPage
+              onHome={() => navigate('/')}
+              onOpenAuth={openAuth}
+              subtitle="How CreditClear handles account data, uploaded documents, billing records, and AI-assisted drafting inputs."
+              title="Privacy Policy"
+              body={[
+                {
+                  title: 'Information We Store',
+                  text:
+                    'CreditClear stores account details, subscription state, disputes, editable letter drafts, and uploaded files needed to operate the service. Uploaded files are kept in private storage and are intended for use within the authenticated workflow only.',
+                },
+                {
+                  title: 'How Data Is Used',
+                  text:
+                    'We use your inputs to authenticate your account, maintain saved disputes, process billing, and generate AI-assisted draft content. Generated outputs depend on the information you provide and should always be reviewed before use.',
+                },
+                {
+                  title: 'Important Limits',
+                  text:
+                    'CreditClear is a document-assistance and workflow platform, not a law firm. The service does not guarantee deletion of accurate information, does not provide legal advice, and should not be treated as professional legal representation.',
+                },
+              ]}
+            />
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <LegalPage
+              onHome={() => navigate('/')}
+              onOpenAuth={openAuth}
+              subtitle="The rules for using CreditClear's document workflow, subscription access, and draft-generation features."
+              title="Terms Of Use"
+              body={[
+                {
+                  title: 'Service Scope',
+                  text:
+                    'CreditClear provides AI-assisted organization tools, document uploads, summaries, and editable draft dispute letters. All generated outputs are drafts for user review and not instructions, guarantees, or legal advice.',
+                },
+                {
+                  title: 'User Responsibilities',
+                  text:
+                    'You are responsible for reviewing every generated output, verifying underlying facts, and deciding whether or how to use any draft. You must not rely on generated content without confirming that it is accurate for your situation.',
+                },
+                {
+                  title: 'Billing And Access',
+                  text:
+                    'Paid features may require an active subscription or valid trial. If subscription status changes, access to premium generation features may be limited until billing is restored.',
+                },
+              ]}
+            />
+          }
+        />
+        <Route
+          path="/disclaimer"
+          element={
+            <LegalPage
+              onHome={() => navigate('/')}
+              onOpenAuth={openAuth}
+              subtitle="Important limitations, review responsibilities, and product-scope disclosures for CreditClear users."
+              title="Product Disclaimer"
+              body={[
+                {
+                  title: 'Draft Assistance Only',
+                  text:
+                    'CreditClear helps organize information and generate editable draft dispute letters for user review. Outputs are starting points, not final instructions, guarantees, or legal representations.',
+                },
+                {
+                  title: 'No Guaranteed Outcomes',
+                  text:
+                    'CreditClear does not promise deletion of accurate information, score increases, or dispute success. Results depend on the underlying facts and how reporting entities respond.',
+                },
+                {
+                  title: 'Review Before Use',
+                  text:
+                    'Users must review every generated summary, recommendation, and letter before using it. If uploaded document analysis is incomplete or uncertain, users should verify all details independently.',
+                },
+              ]}
+            />
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <LoginPage
+              authLoading={authLoading}
+              error={authError}
+              loginEmail={loginEmail}
+              loginPassword={loginPassword}
+              onBackHome={() => navigate('/')}
+              onEmailChange={setLoginEmail}
+              onForgotPassword={() => void handleForgotPassword()}
+              onGoogle={() => void handleSocial()}
+              onLogin={() => void handleLogin()}
+              onPasswordChange={setLoginPassword}
+              onSignupRoute={() => navigate('/signup')}
+              notice={authNotice}
+            />
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <SignupPage
+              authLoading={authLoading}
+              error={authError}
+              acceptedTerms={signupAcceptedTerms}
+              notice={authNotice}
+              onBackHome={() => navigate('/')}
+              onAcceptedTermsChange={setSignupAcceptedTerms}
+              onEmailChange={setSignupEmail}
+              onGoogle={() => void handleSocial()}
+              onLoginRoute={() => navigate('/login')}
+              onNameChange={setSignupName}
+              onPasswordChange={setSignupPassword}
+              onSignup={() => void handleSignup()}
+              signupEmail={signupEmail}
+              signupName={signupName}
+              signupPassword={signupPassword}
+            />
+          }
+        />
+        <Route
+          path="/app"
+          element={<Navigate replace to={authUser ? '/dashboard' : '/login'} />}
+        />
+        <Route
+          path="/dashboard"
+          element={
+            authUser ? (
+              <DashboardPage
+                appMessage={billingMessage}
+                appTab="disputes"
+                disputes={disputes}
+                disputesError={disputesError}
+                disputesLoading={disputesLoading}
+                onAppTabChange={handleWorkspaceTabChange}
+                onOpenBilling={() => navigate('/billing')}
+                onOpenDispute={(id) => void loadDispute(id)}
+                onOpenNewDispute={() => navigate('/disputes/new')}
+                onRetryDisputes={() => void refreshDisputes().catch(() => undefined)}
+                onShowHome={() => navigate('/')}
+                onSignOut={() => void signOutUser()}
+                statusLabel={subscription.statusLabel}
+                userDisplayName={userDisplayName}
+              />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/disputes/new"
+          element={
+            authUser ? (
+              <NewDisputePage
+                appState={appState}
+                billingLoading={billingLoading}
+                billingMessage={billingMessage}
+                canAccessApp={subscription.canAccessApp}
+                disputes={disputes}
+                disputesLoading={disputesLoading}
+                onAddFiles={(files) => void addFiles(files)}
+                onAppTabChange={handleWorkspaceTabChange}
+                onBeginCheckout={() => void beginCheckout()}
+                onDownloadAll={() => {
+                  appState.letters.forEach((letter, index) => {
+                    window.setTimeout(() => {
+                      downloadLetter(letter.text, buildLetterFileName(letter))
+                    }, index * 150)
+                  })
+                }}
+                onDownloadLetter={(letter) => downloadLetter(letter.text, buildLetterFileName(letter))}
+                onFieldChange={(field, value) =>
+                  setAppState((previous) => ({
+                    ...previous,
+                    info: { ...previous.info, [field]: value },
+                  }))
+                }
+                onGoToStep={(step) => {
+                  setAppState((previous) => ({ ...previous, step }))
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                onLoadDispute={(record) => void loadDispute(record.id)}
+                onRemoveFile={(index) =>
+                  setAppState((previous) => ({
+                    ...previous,
+                    files: previous.files.filter((_, fileIndex) => fileIndex !== index),
+                  }))
+                }
+                onResetApp={resetApp}
+                onSetOpenLetter={(id) => setAppState((previous) => ({ ...previous, openLetter: id }))}
+                onSetSelectedAgencies={(agencies) => setAppState((previous) => ({ ...previous, agencies }))}
+                onSetSelectedIssues={(issues) => setAppState((previous) => ({ ...previous, issues }))}
+                onShowHome={() => navigate('/')}
+                onSignOut={() => void signOutUser()}
+                onStartAnalysis={() => void startAnalysis()}
+                onUpdateLetterText={(letterId, text) => void saveLetterEdit(letterId, text)}
+                statusLabel={subscription.statusLabel}
+                userDisplayName={userDisplayName}
+              />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/disputes/:id"
+          element={
+            authUser ? (
+              <DisputeDetailRoute
+                appMessage={billingMessage}
+                detail={disputeDetail}
+                detailLoading={detailLoading}
+                onAppTabChange={handleWorkspaceTabChange}
+                onDownloadLetter={downloadLetter}
+                onLoadDetail={getDetail}
+                onOpenInGenerator={loadDisputeIntoGenerator}
+                onSaveLetterEdit={(letterId, text) => void saveLetterEdit(letterId, text)}
+                onShowHome={() => navigate('/')}
+                onSignOut={() => void signOutUser()}
+                statusLabel={subscription.statusLabel}
+                userDisplayName={userDisplayName}
+              />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/billing"
+          element={
+            authUser ? (
+              <BillingPage
+                appMessage={billingMessage}
+                appTab="disputes"
+                billingLoading={billingLoading}
+                currentPeriodEnd={appUser?.subscription_current_period_end}
+                onAppTabChange={handleWorkspaceTabChange}
+                onBeginCheckout={() => void beginCheckout()}
+                onManageBilling={() => void beginPortal()}
+                onShowHome={() => navigate('/')}
+                onSignOut={() => void signOutUser()}
+                statusLabel={subscription.statusLabel}
+                trialEndsAt={appUser?.trial_ends_at}
+                userDisplayName={userDisplayName}
+              />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            authUser ? (
+              <SettingsPage
+                appMessage={billingMessage}
+                appTab="disputes"
+                onAppTabChange={handleWorkspaceTabChange}
+                onShowHome={() => navigate('/')}
+                onSignOut={() => void signOutUser()}
+                statusLabel={subscription.statusLabel}
+                user={appUser}
+                userDisplayName={userDisplayName}
+              />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
+        />
+          <Route path="*" element={<NotFoundPage onHome={() => navigate('/')} />} />
+        </Routes>
+      </Suspense>
+
+      <AuthModal
+        authError={authError}
+        authNotice={authNotice}
+        authLoading={authLoading}
+        authTab={authTab}
+        isOpen={authModalOpen}
+        loginEmail={loginEmail}
+        loginPassword={loginPassword}
+        onClose={closeAuth}
+        onLogin={() => void handleLogin()}
+        onLoginEmailChange={setLoginEmail}
+        onLoginPasswordChange={setLoginPassword}
+        onOverlayClick={closeAuth}
+        onForgotPassword={() => void handleForgotPassword()}
+        onSignup={() => void handleSignup()}
+        onSignupAcceptedTermsChange={setSignupAcceptedTerms}
+        onSignupEmailChange={setSignupEmail}
+        onSignupNameChange={setSignupName}
+        onSignupPasswordChange={setSignupPassword}
+        onSocial={() => void handleSocial()}
+        onTabChange={(nextTab) => {
+          setAuthError('')
+          setAuthNotice('')
+          setAuthTab(nextTab)
+        }}
+        signupEmail={signupEmail}
+        signupAcceptedTerms={signupAcceptedTerms}
+        signupName={signupName}
+        signupPassword={signupPassword}
+      />
+    </>
+  )
+}
+
+function Background() {
+  return (
+    <>
+      <div className="bg-mesh"></div>
+      <div className="grid-bg"></div>
+      <div className="orb orb1"></div>
+      <div className="orb orb2"></div>
+      <div className="orb orb3"></div>
+    </>
+  )
+}
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function isAgencyId(value: string): value is 'equifax' | 'experian' | 'transunion' {
+  return value === 'equifax' || value === 'experian' || value === 'transunion'
+}
+
+function isIssueId(value: string): value is
+  | 'late'
+  | 'coll'
+  | 'inq'
+  | 'id'
+  | 'dup'
+  | 'bal'
+  | 'bk'
+  | 'repo'
+  | 'jud'
+  | 'cl'
+  | 'sl'
+  | 'med' {
+  return ['late', 'coll', 'inq', 'id', 'dup', 'bal', 'bk', 'repo', 'jud', 'cl', 'sl', 'med'].includes(value)
+}
+
+function DisputeDetailRoute({
+  appMessage,
+  detail,
+  detailLoading,
+  onAppTabChange,
+  onDownloadLetter,
+  onLoadDetail,
+  onOpenInGenerator,
+  onSaveLetterEdit,
+  onShowHome,
+  onSignOut,
+  statusLabel,
+  userDisplayName,
+}: {
+  appMessage: string
+  detail: DisputeDetail | null
+  detailLoading: boolean
+  onAppTabChange: (tab: 'generator' | 'disputes') => void
+  onDownloadLetter: (text: string, fileName: string) => void
+  onLoadDetail: (id: string) => Promise<DisputeDetail>
+  onOpenInGenerator: (detail: DisputeDetail) => void
+  onSaveLetterEdit: (letterId: string, text: string) => void
+  onShowHome: () => void
+  onSignOut: () => void
+  statusLabel: string
+  userDisplayName: string
+}) {
+  const { id } = useParams()
+  const [loadedDetail, setLoadedDetail] = useState<DisputeDetail | null>(detail)
+  const [routeLoading, setRouteLoading] = useState(!detail)
+
+  useEffect(() => {
+    if (!id) {
+      return
+    }
+
+    void (async () => {
+      setRouteLoading(true)
+      try {
+        const nextDetail = await onLoadDetail(id)
+        setLoadedDetail(nextDetail)
+      } catch {
+        setLoadedDetail(null)
+      } finally {
+        setRouteLoading(false)
+      }
+    })()
+  }, [id, onLoadDetail])
+
+  return (
+    <>
+      <DisputeDetailPage
+        appMessage={appMessage}
+        appTab="disputes"
+        detail={loadedDetail}
+        loading={routeLoading || (detailLoading && !loadedDetail)}
+        onAppTabChange={onAppTabChange}
+        onDownloadLetter={onDownloadLetter}
+        onOpenInGenerator={() => loadedDetail ? onOpenInGenerator(loadedDetail) : undefined}
+        onSaveLetterEdit={onSaveLetterEdit}
+        onShowHome={onShowHome}
+        onSignOut={onSignOut}
+        statusLabel={statusLabel}
+        userDisplayName={userDisplayName}
+      />
+    </>
+  )
+}
+
+export default AppRoutes

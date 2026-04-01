@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" fill="none" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#07070d" rx="40" />
+  <rect width="1120" height="550" x="40" y="40" fill="url(#a)" rx="32" />
+  <rect width="460" height="470" x="80" y="80" fill="rgba(255,255,255,.03)" rx="28" stroke="rgba(255,255,255,.08)" />
+  <rect width="540" height="470" x="580" y="80" fill="rgba(255,255,255,.03)" rx="28" stroke="rgba(255,255,255,.08)" />
+  <text x="110" y="165" fill="#c9a84c" font-family="Arial, sans-serif" font-size="34" letter-spacing="4">CREDITCLEAR AI</text>
+  <text x="110" y="255" fill="#f6f1e8" font-family="Georgia, serif" font-size="72">Review-ready</text>
+  <text x="110" y="330" fill="#f6f1e8" font-family="Georgia, serif" font-size="72">credit dispute</text>
+  <text x="110" y="405" fill="#f6f1e8" font-family="Georgia, serif" font-size="72">workflow</text>
+  <text x="110" y="470" fill="#d2d2dc" font-family="Arial, sans-serif" font-size="28">Secure uploads. AI-assisted drafts. User-reviewed outputs.</text>
+  <rect width="460" height="84" x="620" y="128" fill="rgba(201,168,76,.1)" rx="18" stroke="rgba(201,168,76,.28)" />
+  <rect width="460" height="84" x="620" y="238" fill="rgba(71,191,255,.08)" rx="18" stroke="rgba(71,191,255,.24)" />
+  <rect width="460" height="84" x="620" y="348" fill="rgba(0,229,160,.08)" rx="18" stroke="rgba(0,229,160,.22)" />
+  <text x="660" y="180" fill="#f6f1e8" font-family="Arial, sans-serif" font-size="30">Organize credit report issues</text>
+  <text x="660" y="290" fill="#f6f1e8" font-family="Arial, sans-serif" font-size="30">Upload supporting documents securely</text>
+  <text x="660" y="400" fill="#f6f1e8" font-family="Arial, sans-serif" font-size="30">Generate editable dispute drafts</text>
+  <text x="620" y="515" fill="#9fa3b8" font-family="Arial, sans-serif" font-size="24">Not legal advice. Results vary. Review all generated drafts before use.</text>
+  <defs>
+    <linearGradient id="a" x1="40" x2="1160" y1="40" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11111b" />
+      <stop offset="1" stop-color="#0d1222" />
+    </linearGradient>
+  </defs>
+</svg>

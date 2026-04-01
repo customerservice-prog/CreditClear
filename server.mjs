@@ -1,0 +1,158 @@
+import { createReadStream, existsSync } from 'node:fs'
+import { stat, readFile } from 'node:fs/promises'
+import http from 'node:http'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const distDir = path.join(__dirname, 'dist')
+const indexPath = path.join(distDir, 'index.html')
+const rawBodyRoutes = new Set(['/api/stripe-webhook', '/api/webhook'])
+
+const apiHandlers = {
+  '/api/bootstrap-user': () => import('./api/bootstrap-user.js'),
+  '/api/create-checkout': () => import('./api/create-checkout.js'),
+  '/api/create-portal': () => import('./api/create-portal.js'),
+  '/api/generate-dispute-draft': () => import('./api/generate-dispute-draft.js'),
+  '/api/generate-letters': () => import('./api/generate-letters.js'),
+  '/api/save-upload-metadata': () => import('./api/save-upload-metadata.js'),
+  '/api/stripe-webhook': () => import('./api/stripe-webhook.js'),
+  '/api/webhook': () => import('./api/webhook.js'),
+}
+
+const mimeTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}
+
+const server = http.createServer(async (request, response) => {
+  try {
+    const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
+
+    if (url.pathname.startsWith('/api/')) {
+      await handleApiRequest(url.pathname, request, response)
+      return
+    }
+
+    await serveStaticAsset(url.pathname, response)
+  } catch (error) {
+    console.error('[server]', error instanceof Error ? error.message : 'Unknown server error.')
+    if (!response.headersSent) {
+      response.statusCode = 500
+      response.setHeader('Content-Type', 'application/json; charset=utf-8')
+    }
+    response.end(JSON.stringify({ error: 'Internal server error.' }))
+  }
+})
+
+server.listen(Number(process.env.PORT) || 10000, '0.0.0.0', () => {
+  console.log(`CreditClear listening on port ${process.env.PORT || 10000}`)
+})
+
+async function handleApiRequest(pathname, request, response) {
+  const loadHandler = apiHandlers[pathname]
+  if (!loadHandler) {
+    enhanceResponse(response)
+    response.status(404).json({ error: 'Not found.' })
+    return
+  }
+
+  if (!rawBodyRoutes.has(pathname)) {
+    request.body = await parseJsonBody(request)
+  }
+
+  enhanceResponse(response)
+  const module = await loadHandler()
+  await module.default(request, response)
+
+  if (!response.writableEnded && !response.headersSent) {
+    response.status(204).end()
+  }
+}
+
+async function serveStaticAsset(pathname, response) {
+  const safePath = normalizeStaticPath(pathname)
+  const candidatePath = path.join(distDir, safePath)
+
+  if (safePath && existsSync(candidatePath) && (await stat(candidatePath)).isFile()) {
+    response.statusCode = 200
+    response.setHeader('Content-Type', getContentType(candidatePath))
+    createReadStream(candidatePath).pipe(response)
+    return
+  }
+
+  response.statusCode = 200
+  response.setHeader('Content-Type', 'text/html; charset=utf-8')
+  response.end(await readFile(indexPath))
+}
+
+function normalizeStaticPath(pathname) {
+  const decodedPath = decodeURIComponent(pathname || '/')
+  const trimmedPath = decodedPath.replace(/^\/+/, '')
+  const normalizedPath = path.normalize(trimmedPath)
+
+  if (!normalizedPath || normalizedPath === '.' || normalizedPath.startsWith('..')) {
+    return ''
+  }
+
+  return normalizedPath
+}
+
+function enhanceResponse(response) {
+  response.status = function status(code) {
+    response.statusCode = code
+    return response
+  }
+
+  response.json = function json(payload) {
+    if (!response.getHeader('Content-Type')) {
+      response.setHeader('Content-Type', 'application/json; charset=utf-8')
+    }
+    response.end(JSON.stringify(payload))
+    return response
+  }
+}
+
+async function parseJsonBody(request) {
+  const chunks = []
+
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+
+  if (!chunks.length) {
+    return undefined
+  }
+
+  const rawBody = Buffer.concat(chunks).toString('utf8').trim()
+  if (!rawBody) {
+    return undefined
+  }
+
+  const contentType = String(request.headers['content-type'] || '').toLowerCase()
+  if (!contentType.includes('application/json')) {
+    return rawBody
+  }
+
+  try {
+    return JSON.parse(rawBody)
+  } catch {
+    return undefined
+  }
+}
+
+function getContentType(filePath) {
+  return mimeTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
+}

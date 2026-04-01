@@ -1,0 +1,82 @@
+interface SignupPageProps {
+  acceptedTerms: boolean
+  authLoading: boolean
+  error: string
+  notice: string
+  onAcceptedTermsChange: (value: boolean) => void
+  onBackHome: () => void
+  onEmailChange: (value: string) => void
+  onGoogle: () => void
+  onLoginRoute: () => void
+  onNameChange: (value: string) => void
+  onPasswordChange: (value: string) => void
+  onSignup: () => void
+  signupEmail: string
+  signupName: string
+  signupPassword: string
+}
+
+export function SignupPage({
+  acceptedTerms,
+  authLoading,
+  error,
+  notice,
+  onAcceptedTermsChange,
+  onBackHome,
+  onEmailChange,
+  onGoogle,
+  onLoginRoute,
+  onNameChange,
+  onPasswordChange,
+  onSignup,
+  signupEmail,
+  signupName,
+  signupPassword,
+}: SignupPageProps) {
+  return (
+    <div className="page active">
+      <div className="hero" style={{ maxWidth: 520 }}>
+        <div className="hero-badge"><div className="pulse-dot"></div> Start Free Trial</div>
+        <h1>
+          Build Your <em>Credit Workspace</em>
+        </h1>
+        <p className="hero-sub">Create an account to organize issues, upload report documents, and generate review-ready draft disputes.</p>
+        <div className="modal" style={{ margin: '0 auto', maxWidth: 440 }}>
+          <div className="auth-err" style={{ display: error ? 'block' : 'none' }}>{error}</div>
+          <div className="auth-msg" style={{ display: notice ? 'block' : 'none' }}>{notice}</div>
+          <div className="ff">
+            <label>Full Name</label>
+            <input onChange={(event) => onNameChange(event.target.value)} type="text" value={signupName} />
+          </div>
+          <div className="ff">
+            <label>Email Address</label>
+            <input onChange={(event) => onEmailChange(event.target.value)} type="email" value={signupEmail} />
+          </div>
+          <div className="ff">
+            <label>Password</label>
+            <input onChange={(event) => onPasswordChange(event.target.value)} type="password" value={signupPassword} />
+          </div>
+          <label className="check-row">
+            <input checked={acceptedTerms} onChange={(event) => onAcceptedTermsChange(event.target.checked)} type="checkbox" />
+            <span>
+              I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.
+            </span>
+          </label>
+          <button className="btn-auth" disabled={authLoading} onClick={onSignup} type="button">
+            {authLoading ? 'Creating Account...' : 'Create Account'}
+          </button>
+          <div className="auth-div"><span>or</span></div>
+          <button className="social-btn" disabled={authLoading} onClick={onGoogle} type="button">
+            Continue with Google
+          </button>
+          <div className="auth-switch">
+            Already have an account? <button onClick={onLoginRoute} type="button">Sign in</button>
+          </div>
+          <div className="btn-row" style={{ justifyContent: 'center' }}>
+            <button className="btn btn-ghost" onClick={onBackHome} type="button">← Back Home</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
