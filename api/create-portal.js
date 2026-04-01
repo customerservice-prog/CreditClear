@@ -21,7 +21,7 @@ export default async function handler(request, response) {
     const { subscription } = await ensureAccountState(authUser)
 
     if (!subscription?.stripe_customer_id) {
-      throw new ApiError(400, 'No billing profile is available for this account yet.')
+      throw new ApiError(400, 'This account uses complimentary access and does not need billing management.')
     }
 
     const session = await stripe.billingPortal.sessions.create({

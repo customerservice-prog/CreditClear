@@ -7,7 +7,7 @@ const TRIAL_LENGTH_MS = 7 * 24 * 60 * 60 * 1000
 
 export async function ensureAccountState(authUser) {
   const profile = await upsertProfile(authUser)
-  const subscription = await ensureSubscription(authUser)
+  const subscription = applyOwnerAccessOverride(authUser, await ensureSubscription(authUser))
 
   return {
     profile,
@@ -110,4 +110,32 @@ function buildAppUser(profile, subscription) {
     subscription_current_period_end: subscription?.current_period_end ?? null,
     trial_ends_at: subscription?.trial_ends_at ?? null,
   }
+}
+
+function applyOwnerAccessOverride(authUser, subscription) {
+  if (!isOwnerAccessUser(authUser)) {
+    return subscription
+  }
+
+  return {
+    ...subscription,
+    current_period_end: subscription?.current_period_end ?? null,
+    plan_name: 'Owner Complimentary Access',
+    status: 'active',
+    trial_ends_at: subscription?.trial_ends_at ?? null,
+  }
+}
+
+function isOwnerAccessUser(authUser) {
+  const email = String(authUser?.email || '').trim().toLowerCase()
+  if (!email) {
+    return false
+  }
+
+  const configuredEmails = String(process.env.OWNER_FREE_ACCESS_EMAILS || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+
+  return configuredEmails.includes(email)
 }

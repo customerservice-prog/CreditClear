@@ -22,7 +22,7 @@ export default async function handler(request, response) {
     const { profile: profileRow, subscription: subscriptionRow } = await ensureAccountState(authUser)
 
     if (subscriptionRow.status === 'active') {
-      throw new ApiError(409, 'Your subscription is already active.')
+      throw new ApiError(409, 'This account already has active access and does not need checkout.')
     }
 
     const customerId = await ensureStripeCustomer(subscriptionRow, authUser)
