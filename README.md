@@ -109,15 +109,17 @@ npm run dev:full
 npm test
 ```
 
-## Anthropic integration
+## AI integration
 
-`/api/generate-dispute-draft` sends the selected agencies, selected issues, personal info, and uploaded report files to Anthropic using `claude-sonnet-4-20250514` by default.
+`/api/generate-dispute-draft` sends the selected agencies, selected issues, personal info, and uploaded report files to the configured AI provider.
 
 - The AI key stays server-side.
 - The endpoint returns streamed server-sent events.
 - The frontend adds letters progressively as they arrive.
 - Output is intentionally framed as editable draft assistance, not guaranteed outcomes or legal advice.
 - A lightweight in-memory rate limit guards repeated generation bursts per user/session.
+- OpenAI keys in `AI_API_KEY` use `gpt-4.1-mini` by default.
+- Anthropic keys can still be used through `ANTHROPIC_API_KEY` or an `AI_API_KEY` that starts with `sk-ant-`.
 
 ## Monitoring and analytics
 

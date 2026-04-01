@@ -1,3 +1,4 @@
+import { resolveAiModel, resolveAiProvider } from './_lib/ai.js'
 import { applyCors } from './_lib/cors.js'
 import { assertPremiumAccess, ensureAccountState } from './_lib/account.js'
 import { getOptionalEnv, getRequiredEnv } from './_lib/env.js'
@@ -34,6 +35,9 @@ const ISSUES = {
   med: { label: 'Medical Debt', icon: '🏥' },
 }
 
+const AI_SYSTEM_PROMPT =
+  'You are a careful consumer-finance document assistant. Generate factual, professional, user-reviewable dispute-draft content. Never promise outcomes, never claim guaranteed removals, never invent facts, never present legal advice, and never impersonate a law firm. Return only valid JSON with keys: summary, recommendations, letters. Each letter must contain: agency, issue, subject, text.'
+
 export default async function handler(request, response) {
   if (applyCors(request, response)) {
     return
@@ -58,51 +62,22 @@ export default async function handler(request, response) {
 
     sendEvent(response, { type: 'status', message: 'Scanning uploaded materials...' })
 
-    const content = [
-      {
-        type: 'text',
-        text: buildUserPrompt({
-          agencies: normalizedRequest.agencies,
-          authUser,
-          files: uploads,
-          info: normalizedRequest.info,
-          issues: normalizedRequest.issues,
-        }),
-      },
-      ...(await buildAttachmentBlocks(uploads, authUser.id)),
-    ]
+    const prompt = buildUserPrompt({
+      agencies: normalizedRequest.agencies,
+      authUser,
+      files: uploads,
+      info: normalizedRequest.info,
+      issues: normalizedRequest.issues,
+    })
+    const provider = resolveAiProvider()
 
     sendEvent(response, { type: 'status', message: 'Analyzing credit report details...' })
 
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': getOptionalEnv('AI_API_KEY', 'ANTHROPIC_API_KEY') || getRequiredEnv('ANTHROPIC_API_KEY'),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        max_tokens: 8192,
-        model: getOptionalEnv('AI_MODEL_NAME') || 'claude-sonnet-4-20250514',
-        system:
-          'You are a careful consumer-finance document assistant. Generate factual, professional, user-reviewable dispute-draft content. Never promise outcomes, never claim guaranteed removals, never invent facts, never present legal advice, and never impersonate a law firm. Return only valid JSON with keys: summary, recommendations, letters. Each letter must contain: agency, issue, subject, text.',
-        messages: [{ role: 'user', content }],
-      }),
-    })
-
-    if (!anthropicResponse.ok) {
-      throw new ApiError(502, 'The AI draft service is temporarily unavailable. Please try again shortly.', {
-        expose: true,
-      })
-    }
-
     sendEvent(response, { type: 'status', message: 'Drafting dispute letters...' })
 
-    const anthropicPayload = await anthropicResponse.json()
-    const text = (anthropicPayload.content || [])
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n')
+    const text = provider === 'anthropic'
+      ? await generateWithAnthropic(prompt, uploads, authUser.id)
+      : await generateWithOpenAi(prompt, uploads, authUser.id)
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)
@@ -240,6 +215,112 @@ async function buildAttachmentBlocks(files, userId) {
   }
 
   return blocks
+}
+
+async function generateWithAnthropic(prompt, files, userId) {
+  const content = [
+    { type: 'text', text: prompt },
+    ...(await buildAttachmentBlocks(files, userId)),
+  ]
+
+  const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': getOptionalEnv('ANTHROPIC_API_KEY', 'AI_API_KEY') || getRequiredEnv('ANTHROPIC_API_KEY'),
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      max_tokens: 8192,
+      model: resolveAiModel('anthropic'),
+      system: AI_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content }],
+    }),
+  })
+
+  if (!anthropicResponse.ok) {
+    throw new ApiError(502, 'The AI draft service is temporarily unavailable. Please try again shortly.', {
+      expose: true,
+    })
+  }
+
+  const anthropicPayload = await anthropicResponse.json()
+  return (anthropicPayload.content || [])
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+}
+
+async function generateWithOpenAi(prompt, files, userId) {
+  const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${getOptionalEnv('OPENAI_API_KEY', 'AI_API_KEY') || getRequiredEnv('AI_API_KEY')}`,
+    },
+    body: JSON.stringify({
+      model: resolveAiModel('openai'),
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: AI_SYSTEM_PROMPT,
+        },
+        {
+          role: 'user',
+          content: await buildOpenAiContent(prompt, files, userId),
+        },
+      ],
+    }),
+  })
+
+  if (!openAiResponse.ok) {
+    throw new ApiError(502, 'The AI draft service is temporarily unavailable. Please try again shortly.', {
+      expose: true,
+    })
+  }
+
+  const openAiPayload = await openAiResponse.json()
+  const messageContent = openAiPayload.choices?.[0]?.message?.content
+
+  if (typeof messageContent === 'string') {
+    return messageContent
+  }
+
+  if (Array.isArray(messageContent)) {
+    return messageContent
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
+  }
+
+  return ''
+}
+
+async function buildOpenAiContent(prompt, files, userId) {
+  const content = [{ type: 'text', text: prompt }]
+  const attachments = await buildAttachmentBlocks(files, userId)
+
+  for (const attachment of attachments) {
+    if (attachment.type === 'image') {
+      content.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${attachment.source.media_type};base64,${attachment.source.data}`,
+        },
+      })
+      continue
+    }
+
+    if (attachment.type === 'document') {
+      content.push({
+        type: 'text',
+        text: `Uploaded PDF evidence file: ${attachment.title}. Use the user's entered facts and the upload metadata for context.`,
+      })
+    }
+  }
+
+  return content
 }
 
 function normalizeLetters(rawLetters, agencies, issues) {
