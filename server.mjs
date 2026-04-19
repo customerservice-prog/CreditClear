@@ -173,13 +173,23 @@ async function serveStaticAsset(pathname, response) {
   if (safePath && existsSync(candidatePath) && (await stat(candidatePath)).isFile()) {
     response.statusCode = 200
     response.setHeader('Content-Type', getContentType(candidatePath))
+    setStaticCacheHeaders(safePath, response)
     createReadStream(candidatePath).pipe(response)
     return
   }
 
   response.statusCode = 200
   response.setHeader('Content-Type', 'text/html; charset=utf-8')
+  response.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
   response.end(await readFile(indexPath))
+}
+
+function setStaticCacheHeaders(safePath, response) {
+  if (safePath.startsWith('assets/') && /\.(js|mjs|css|woff2?)$/i.test(safePath)) {
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  } else {
+    response.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
+  }
 }
 
 function normalizeStaticPath(pathname) {
