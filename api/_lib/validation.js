@@ -6,6 +6,19 @@ export const ALLOWED_UPLOAD_MIME_TYPES = ['application/pdf', 'image/png', 'image
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 export const MAX_UPLOAD_COUNT = 6
 
+const REPORT_BUREAU_LABELS = ['equifax', 'experian', 'transunion', 'combined']
+
+export function assertOptionalReportBureau(value) {
+  if (value == null || value === '') {
+    return null
+  }
+  const normalized = sanitizeText(value, { maxLength: 24 }).toLowerCase()
+  if (!REPORT_BUREAU_LABELS.includes(normalized)) {
+    throw new ApiError(400, 'Report bureau label is invalid.')
+  }
+  return normalized
+}
+
 export function sanitizeText(value, { maxLength = 160, preserveNewlines = false } = {}) {
   const normalized = String(value ?? '')
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, ' ')
@@ -78,11 +91,12 @@ export function assertEnumArray(values, allowed, field, { min = 1, max = allowed
   return sanitized
 }
 
-export function assertUploadMetadata({ disputeId, fileName, filePath, fileSize, mimeType, userId }) {
+export function assertUploadMetadata({ disputeId, fileName, filePath, fileSize, mimeType, reportBureau, userId }) {
   const normalizedDisputeId = assertOptionalUuid(disputeId, 'Dispute id')
   const normalizedFileName = sanitizeFileName(assertNonEmptyString(fileName, 'File name', { maxLength: 120 }))
   const normalizedMimeType = sanitizeText(mimeType, { maxLength: 40 }).toLowerCase()
   const normalizedFilePath = assertNonEmptyString(filePath, 'File path', { maxLength: 240 })
+  const normalizedReportBureau = assertOptionalReportBureau(reportBureau)
 
   if (!ALLOWED_UPLOAD_MIME_TYPES.includes(normalizedMimeType)) {
     throw new ApiError(400, 'Unsupported file type.')
@@ -102,5 +116,6 @@ export function assertUploadMetadata({ disputeId, fileName, filePath, fileSize, 
     filePath: normalizedFilePath,
     fileSize,
     mimeType: normalizedMimeType,
+    reportBureau: normalizedReportBureau,
   }
 }

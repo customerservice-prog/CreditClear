@@ -41,7 +41,7 @@ function dispatchSseFromLineBuffer(
       } catch {
         onEvent({
           message:
-            'The AI response stream was malformed. If this persists, try again or contact support.',
+            'The letter stream was malformed. If this persists, try again or contact support.',
           type: 'error',
         })
         return { lineBuffer: buf, shouldStop: true }
@@ -49,7 +49,7 @@ function dispatchSseFromLineBuffer(
       continue
     }
 
-    const trimmed = line.replace(/\u0000/g, '').trimEnd()
+    const trimmed = line.split('\u0000').join('').trimEnd()
     if (trimmed.startsWith('data:')) {
       dataLines.push(trimmed.slice(5).trimStart())
     }
@@ -163,7 +163,7 @@ export async function streamGeneratedLetters({
           } catch {
             onEvent({
               message:
-                'The AI response stream was malformed. If this persists, try again or contact support.',
+                'The letter stream was malformed. If this persists, try again or contact support.',
               type: 'error',
             })
           }
@@ -176,7 +176,7 @@ export async function streamGeneratedLetters({
             } catch {
               onEvent({
                 message:
-                  'The AI response stream was malformed. If this persists, try again or contact support.',
+                  'The letter stream was malformed. If this persists, try again or contact support.',
                 type: 'error',
               })
             }

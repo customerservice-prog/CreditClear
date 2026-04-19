@@ -137,6 +137,7 @@ export async function saveUploadMetadataRequest(body: {
   filePath: string
   fileSize: number
   mimeType: string
+  reportBureau?: string | null
 }) {
   return apiRequest<{
     upload: {
@@ -147,6 +148,7 @@ export async function saveUploadMetadataRequest(body: {
       file_name: string
       mime_type: string
       file_size: number
+      report_bureau: string | null
       created_at: string
     }
   }>('/api/save-upload-metadata', body)

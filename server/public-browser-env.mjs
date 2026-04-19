@@ -1,5 +1,3 @@
-import { hasConfiguredAiApiKeys } from '../api/_lib/ai-keys.js'
-
 /**
  * Keys exposed to the browser via `/env.js` (window.__ENV__). Never put secrets here.
  */
@@ -16,7 +14,5 @@ export function getPublicBrowserEnv() {
       publicEnv[key] = value.trim()
     }
   }
-  /** `1` = structured drafts only (no external AI keys). Mirrors api/generate-letters stub path. */
-  publicEnv.VITE_OFFLINE_DRAFTS = hasConfiguredAiApiKeys() ? '0' : '1'
   return publicEnv
 }

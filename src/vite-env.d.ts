@@ -16,8 +16,6 @@ interface ImportMetaEnv {
   readonly VITE_STRIPE_PUBLISHABLE_KEY?: string
   /** Optional duplicate of OWNER_FREE_ACCESS_EMAILS for local Vite when /env.js is not used. */
   readonly VITE_OWNER_FREE_ACCESS_EMAILS?: string
-  /** Injected at runtime: "1" when no external AI keys (structured drafts only). */
-  readonly VITE_OFFLINE_DRAFTS?: string
 }
 
 interface ImportMeta {

@@ -30,6 +30,9 @@ export interface AnalysisStep {
   txt: string
 }
 
+/** Bureau-specific file, tri-merge, or unset (treated as applicable to any bureau until labeled). */
+export type ReportBureauTag = AgencyId | 'combined'
+
 export interface CreditFile {
   id?: string
   dispute_id?: string | null
@@ -40,6 +43,7 @@ export interface CreditFile {
   type: string
   base64?: string
   publicUrl?: string | null
+  report_bureau?: ReportBureauTag | null
 }
 
 export interface Letter {
@@ -153,6 +157,7 @@ export interface UploadRecord {
   file_name: string
   mime_type: string
   file_size: number
+  report_bureau?: string | null
   created_at: string
 }
 

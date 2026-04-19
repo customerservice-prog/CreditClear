@@ -46,6 +46,16 @@ export function formatIssueLabel(value: string) {
   return ISSUE_LABELS[value] || value
 }
 
+export function formatReportBureauLabel(value?: string | null) {
+  if (!value) {
+    return 'Not labeled'
+  }
+  if (value === 'combined') {
+    return 'All 3 bureaus (one file)'
+  }
+  return formatAgencyName(value)
+}
+
 export function formatDisputeStatusLabel(value?: string | null) {
   if (!value) {
     return 'Unknown'

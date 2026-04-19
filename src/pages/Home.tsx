@@ -181,9 +181,9 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
         <div className="tdiv"></div>
         <div className="ti">
           <span aria-hidden="true" className="emoji">
-            🤖
+            ✉️
           </span>{' '}
-          Powered by Claude AI
+          Structured dispute letter drafts
         </div>
         <div className="tdiv"></div>
         <div className="ti">

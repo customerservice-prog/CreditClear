@@ -74,6 +74,7 @@ function mapUploadToCreditFile(upload: UploadRecord): CreditFile {
     file_path: upload.file_path,
     id: upload.id,
     name: upload.file_name,
+    report_bureau: (upload.report_bureau as CreditFile['report_bureau']) ?? null,
     size: upload.file_size,
     type: upload.mime_type,
   }

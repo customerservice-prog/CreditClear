@@ -60,6 +60,9 @@ export function Navbar({
               </button>
             </div>
           ) : null}
+          <Link className="app-nav-extra" to="/credit-reports">
+            Credit Reports
+          </Link>
           {statusLabel ? <div className="sub-badge">{statusLabel}</div> : null}
           <div className="user-badge">
             <div className="user-av">{userDisplayName?.[0]?.toUpperCase() || 'U'}</div>

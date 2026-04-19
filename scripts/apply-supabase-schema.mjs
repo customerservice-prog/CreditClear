@@ -1,5 +1,5 @@
 /**
- * Applies supabase/migrations/20260419000000_initial_schema.sql to Postgres.
+ * Applies all SQL files in `supabase/migrations/` in filename order.
  *
  * Requires DATABASE_URL — the Postgres connection URI from Supabase (Settings → Database),
  * NOT the anon or service_role JWT. Use "Direct connection" or "Session pooler" URI with
@@ -21,13 +21,21 @@ if (!DATABASE_URL) {
   console.error(
     'Missing DATABASE_URL. In Supabase: Project Settings → Database → Connection string (URI).\n' +
       'Example: DATABASE_URL="postgresql://postgres.[ref]:YOUR_DB_PASSWORD@db.awpmraducedwbabeunxl.supabase.co:5432/postgres" npm run db:apply\n' +
-      'Alternatively, open supabase/migrations/20260419000000_initial_schema.sql in the Supabase SQL Editor and run it.',
+      'Alternatively, run each file in supabase/migrations/ in order via the Supabase SQL Editor.',
   )
   process.exit(1)
 }
 
-const migrationPath = path.join(root, 'supabase/migrations/20260419000000_initial_schema.sql')
-const sql = fs.readFileSync(migrationPath, 'utf8')
+const migrationsDir = path.join(root, 'supabase/migrations')
+const migrationFiles = fs
+  .readdirSync(migrationsDir)
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+
+if (migrationFiles.length === 0) {
+  console.error('No .sql files found in', migrationsDir)
+  process.exit(1)
+}
 
 const client = new pg.Client({
   connectionString: DATABASE_URL,
@@ -36,8 +44,12 @@ const client = new pg.Client({
 
 await client.connect()
 try {
-  await client.query(sql)
-  console.log('Migration applied:', migrationPath)
+  for (const file of migrationFiles) {
+    const migrationPath = path.join(migrationsDir, file)
+    const sql = fs.readFileSync(migrationPath, 'utf8')
+    await client.query(sql)
+    console.log('Migration applied:', migrationPath)
+  }
 } finally {
   await client.end()
 }

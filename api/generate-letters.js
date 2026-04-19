@@ -1,8 +1,5 @@
-import { hasConfiguredAiApiKeys } from './_lib/ai-keys.js'
-import { resolveAiModel, resolveAiProvider } from './_lib/ai.js'
 import { applyCors } from './_lib/cors.js'
 import { assertPremiumAccess, ensureAccountState } from './_lib/account.js'
-import { getOptionalEnv, getRequiredEnv } from './_lib/env.js'
 import { normalizeGenerationRequest } from './_lib/generation.js'
 import { ApiError, sendError, toSseErrorMessage } from './_lib/http.js'
 import { assertRateLimit } from './_lib/rate-limit.js'
@@ -10,8 +7,6 @@ import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
 import {
   ALLOWED_AGENCIES,
   ALLOWED_ISSUES,
-  ALLOWED_UPLOAD_MIME_TYPES,
-  MAX_UPLOAD_BYTES,
   sanitizeText,
 } from './_lib/validation.js'
 
@@ -36,31 +31,14 @@ const ISSUES = {
   med: { label: 'Medical Debt', icon: '🏥' },
 }
 
-function isAiStubMode() {
-  const raw = String(process.env.AI_STUB_MODE || '').trim().toLowerCase()
-  return raw === '1' || raw === 'true' || raw === 'yes'
+function uploadsForAgency(resolvedUploads, agency) {
+  return resolvedUploads.filter((row) => {
+    const tag = row.report_bureau
+    return !tag || tag === 'combined' || tag === agency
+  })
 }
 
-function assertAiKeysConfigured() {
-  const provider = resolveAiProvider()
-  if (provider === 'anthropic') {
-    if (!getOptionalEnv('ANTHROPIC_API_KEY', 'AI_API_KEY')) {
-      throw new ApiError(
-        503,
-        'Letter drafting is not configured. Set ANTHROPIC_API_KEY (or AI_API_KEY with an Anthropic key) on the server. For demos without an API key, set AI_STUB_MODE=1 to return sample text only.',
-        { expose: true },
-      )
-    }
-  } else if (!getOptionalEnv('OPENAI_API_KEY', 'AI_API_KEY')) {
-    throw new ApiError(
-      503,
-      'Letter drafting is not configured. Set AI_API_KEY or OPENAI_API_KEY on the server. For demos without an API key, set AI_STUB_MODE=1 to return sample text only.',
-      { expose: true },
-    )
-  }
-}
-
-function buildStubAiResponseText(normalizedRequest) {
+function buildDraftPayloadJson(normalizedRequest, resolvedUploads) {
   const agencies = normalizedRequest.agencies?.length
     ? normalizedRequest.agencies
     : Object.keys(AGENCIES)
@@ -69,6 +47,24 @@ function buildStubAiResponseText(normalizedRequest) {
   const letterList = []
 
   for (const agency of agencies) {
+    const forBureau = uploadsForAgency(resolvedUploads, agency)
+    const bureauReportLines =
+      forBureau.length > 0
+        ? [
+            `Uploaded files we are matching to this bureau (${AGENCIES[agency] || agency}): ${forBureau
+              .map((u) => u.file_name)
+              .join('; ')}.`,
+            'Edit the dispute text to mirror account names, numbers, dates, and balances exactly as they appear on that bureau’s report.',
+          ]
+        : resolvedUploads.length > 0
+          ? [
+              `Uploaded files are labeled for other bureaus (or not labeled). For ${AGENCIES[agency] || agency}, use only the credit report file that belongs to this bureau, or relabel uploads in the app.`,
+              '[Replace this paragraph with your specific accounts, dates, and balances exactly as shown on this bureau’s report.]',
+            ]
+          : [
+              '[Replace this paragraph with your specific accounts, dates, and balances exactly as shown on your credit report for this bureau.]',
+            ]
+
     for (const issue of issues) {
       const agencyName = AGENCIES[agency] || agency
       const issueMeta = ISSUES[issue] || { label: issue }
@@ -76,24 +72,26 @@ function buildStubAiResponseText(normalizedRequest) {
       letterList.push({
         agency,
         issue,
-        subject: `${agencyName} — ${issueMeta.label}: dispute draft for review`,
+        subject: `${agencyName} — ${issueMeta.label}: dispute letter draft`,
         text: [
           fullName,
           [info.address, [info.city, info.state].filter(Boolean).join(', '), info.zip].filter(Boolean).join('\n') ||
             '',
           '',
           `${agencyName}`,
-          'Consumer dispute correspondence (draft for your review)',
+          'Consumer dispute correspondence',
           '',
           `Re: ${issueMeta.label}`,
           '',
           'Dear Sir or Madam,',
           '',
-          `I am writing to dispute information on my credit report related to “${issueMeta.label}” as it appears with your bureau. [Replace this paragraph with your specific accounts, dates, and balances exactly as shown on your report.]`,
+          ...bureauReportLines,
           '',
-          'This letter is a demonstration layout generated so you can preview format and structure. Edit every line to match your situation before you send mail or submit through an official dispute portal. Do not rely on placeholder text as a final submission.',
+          `I am writing to dispute information on my credit report related to “${issueMeta.label}” as it appears with your bureau.`,
           '',
-          'You can paste additional details from your credit report or upload notes into this letter before you send it.',
+          'This draft follows a standard dispute letter format. Edit every line to match your situation before you mail or submit through an official dispute channel.',
+          '',
+          'Include copies of any supporting documents and keep a record of what you send.',
           '',
           'Sincerely,',
           fullName,
@@ -107,17 +105,32 @@ function buildStubAiResponseText(normalizedRequest) {
   return JSON.stringify({
     recommendations: [
       'Review every paragraph before you send anything to a bureau.',
-      'Replace bracketed hints with account numbers, dates, and balances from your real report.',
-      'Save a copy for your records after you edit.',
+      'Label each uploaded credit report with the correct bureau (or Combined) so drafts reference the right file.',
+      'Replace bracketed placeholders with account numbers, dates, and balances from your credit file.',
+      'Keep a copy of your dispute package for your records.',
     ],
     letters: letterList,
     summary:
-      'Your dispute letter drafts are ready. Each one matches a bureau and issue you selected — read closely, personalize the details, then use your bureau’s official dispute channel.',
+      'Your dispute letter drafts are ready. Each one matches a bureau and issue you selected — personalize the details using the labeled report for that bureau, then submit through each bureau’s official dispute process.',
   })
 }
 
-const AI_SYSTEM_PROMPT =
-  'You are a careful consumer-finance document assistant. Generate factual, professional, user-reviewable dispute-draft content. Never promise outcomes, never claim guaranteed removals, never invent facts, never present legal advice, and never impersonate a law firm. Return only valid JSON with keys: summary, recommendations, letters. Each letter must contain: agency, issue, subject, text.'
+function extraRecommendationsFromUploads(normalizedRequest, resolvedUploads) {
+  if (!normalizedRequest.fileIds.length || !resolvedUploads.length) {
+    return []
+  }
+
+  const extra = []
+  for (const agency of normalizedRequest.agencies) {
+    const forBureau = uploadsForAgency(resolvedUploads, agency)
+    if (forBureau.length === 0) {
+      extra.push(
+        `No uploaded file is labeled for ${AGENCIES[agency] || agency}. Open Credit Reports, label each file, or use Combined for a single 3-bureau report — then regenerate if needed.`,
+      )
+    }
+  }
+  return extra
+}
 
 export default async function handler(request, response) {
   if (applyCors(request, response)) {
@@ -135,12 +148,7 @@ export default async function handler(request, response) {
     const { subscription } = await ensureAccountState(authUser)
     assertPremiumAccess(subscription)
     const normalizedRequest = normalizeGenerationRequest(request.body || {})
-    const uploads = await resolveOwnedUploads(normalizedRequest.fileIds, authUser.id)
-
-    const useStub = isAiStubMode() || !hasConfiguredAiApiKeys()
-    if (!useStub) {
-      assertAiKeysConfigured()
-    }
+    const resolvedUploads = await resolveOwnedUploads(normalizedRequest.fileIds, authUser.id)
 
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
     response.setHeader('Cache-Control', 'no-cache, no-transform, no-store')
@@ -150,57 +158,24 @@ export default async function handler(request, response) {
 
     sendEvent(response, { type: 'status', message: 'Scanning uploaded materials...' })
 
-    const prompt = buildUserPrompt({
-      agencies: normalizedRequest.agencies,
-      authUser,
-      files: uploads,
-      info: normalizedRequest.info,
-      issues: normalizedRequest.issues,
-    })
-    const provider = resolveAiProvider()
-
     sendEvent(response, { type: 'status', message: 'Analyzing credit report details...' })
 
-    sendEvent(response, {
-      type: 'status',
-      message: useStub ? 'Preparing demonstration drafts…' : 'Drafting dispute letters...',
-    })
+    sendEvent(response, { type: 'status', message: 'Drafting dispute letters...' })
 
-    let text
-    if (useStub) {
-      text = buildStubAiResponseText(normalizedRequest)
-    } else {
-      const heartbeat = setInterval(() => {
-        try {
-          sendEvent(response, {
-            type: 'status',
-            message:
-              'Still drafting… large requests (many bureaus × issues) can take several minutes. Do not close this tab.',
-          })
-        } catch {
-          clearInterval(heartbeat)
-        }
-      }, 12_000)
-
-      try {
-        text =
-          provider === 'anthropic'
-            ? await generateWithAnthropic(prompt, uploads, authUser.id)
-            : await generateWithOpenAi(prompt, uploads, authUser.id)
-      } finally {
-        clearInterval(heartbeat)
-      }
-    }
+    const text = buildDraftPayloadJson(normalizedRequest, resolvedUploads)
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)
     const summary = typeof parsed?.summary === 'string' ? parsed.summary.trim() : ''
-    const recommendations = Array.isArray(parsed?.recommendations)
-      ? parsed.recommendations.map((value) => String(value).trim()).filter(Boolean)
-      : []
+    const recommendations = [
+      ...(Array.isArray(parsed?.recommendations)
+        ? parsed.recommendations.map((value) => String(value).trim()).filter(Boolean)
+        : []),
+      ...extraRecommendationsFromUploads(normalizedRequest, resolvedUploads),
+    ]
 
     if (!letters.length) {
-      throw new ApiError(502, 'The AI response was empty or malformed. Please try again.', { expose: true })
+      throw new ApiError(502, 'Draft generation returned no letters. Please try again.', { expose: true })
     }
 
     sendEvent(response, { type: 'status', message: 'Finalizing letters for download...' })
@@ -224,216 +199,6 @@ export default async function handler(request, response) {
     })
     response.end()
   }
-}
-
-function buildUserPrompt({ agencies, authUser, files, info, issues }) {
-  const selectedAgencies = agencies.length ? agencies : Object.keys(AGENCIES)
-  const selectedIssues = issues.length ? issues : Object.keys(ISSUES)
-
-  return `
-Generate a consumer-review workflow response for every selected agency and issue combination.
-
-User profile:
-- Full name: ${info.firstName || ''} ${info.lastName || ''}
-- Email: ${info.email || authUser.email || ''}
-- Phone: ${info.phone || ''}
-- Address: ${info.address || ''}
-- City: ${info.city || ''}
-- State: ${info.state || ''}
-- ZIP: ${info.zip || ''}
-- DOB: ${info.dob || ''}
-- SSN last 4: ${info.ssn || ''}
-
-Selected agencies:
-${selectedAgencies.map((agency) => `- ${agency}: ${AGENCIES[agency] || agency}`).join('\n')}
-
-Selected issues:
-${selectedIssues.map((issue) => `- ${issue}: ${ISSUES[issue]?.label || issue}`).join('\n')}
-
-Uploaded files:
-${files.length ? files.map((file) => `- ${file.file_name} (${file.mime_type}, ${file.file_size} bytes)`).join('\n') : '- None provided'}
-
-Requirements:
-- Produce one letter per agency x issue pair.
-- Make each letter specific, formal, and credible.
-- Reference the relevant facts from the uploaded report when possible.
-- Include a professional header and closing.
-- Mention FCRA/FDCPA or related compliance principles only when genuinely relevant.
-- Avoid promising deletion, removal, success, or legal representation.
-- If uploaded evidence is incomplete, say so briefly in the summary or recommendations rather than inventing facts.
-- Return JSON only with:
-{
-  "summary": "plain language summary",
-  "recommendations": ["review note 1", "review note 2"],
-  "letters": [
-    {
-      "agency": "equifax",
-      "issue": "late",
-      "subject": "subject line",
-      "text": "full letter text"
-    }
-  ]
-}
-`.trim()
-}
-
-async function buildAttachmentBlocks(files, userId) {
-  const blocks = []
-  const totalBytes = files.reduce((sum, file) => sum + Number(file.file_size || 0), 0)
-
-  if (totalBytes > 20 * 1024 * 1024) {
-    throw new ApiError(400, 'Reduce upload size before generating drafts.')
-  }
-
-  for (const file of files) {
-    if (!file.file_path || !file.file_path.startsWith(`${userId}/`)) {
-      throw new ApiError(403, 'One or more uploaded files could not be verified.')
-    }
-
-    if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.mime_type) || Number(file.file_size) > MAX_UPLOAD_BYTES) {
-      throw new ApiError(400, 'One or more uploaded files are not allowed.')
-    }
-
-    const { data, error } = await supabaseAdmin.storage.from('private-uploads').download(file.file_path)
-    if (error || !data) {
-      throw new ApiError(400, 'One or more uploaded files could not be loaded.')
-    }
-
-    const buffer = Buffer.from(await data.arrayBuffer())
-    const base64 = buffer.toString('base64')
-
-    if (file.mime_type === 'application/pdf') {
-      blocks.push({
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: base64,
-        },
-        title: file.file_name,
-      })
-      continue
-    }
-
-    if (String(file.mime_type).startsWith('image/')) {
-      blocks.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: file.mime_type,
-          data: base64,
-        },
-      })
-    }
-  }
-
-  return blocks
-}
-
-async function generateWithAnthropic(prompt, files, userId) {
-  const content = [
-    { type: 'text', text: prompt },
-    ...(await buildAttachmentBlocks(files, userId)),
-  ]
-
-  const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': getOptionalEnv('ANTHROPIC_API_KEY', 'AI_API_KEY') || getRequiredEnv('ANTHROPIC_API_KEY'),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      max_tokens: 8192,
-      model: resolveAiModel('anthropic'),
-      system: AI_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content }],
-    }),
-  })
-
-  if (!anthropicResponse.ok) {
-    throw new ApiError(502, 'The AI draft service is temporarily unavailable. Please try again shortly.', {
-      expose: true,
-    })
-  }
-
-  const anthropicPayload = await anthropicResponse.json()
-  return (anthropicPayload.content || [])
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('\n')
-}
-
-async function generateWithOpenAi(prompt, files, userId) {
-  const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${getOptionalEnv('OPENAI_API_KEY', 'AI_API_KEY') || getRequiredEnv('AI_API_KEY')}`,
-    },
-    body: JSON.stringify({
-      model: resolveAiModel('openai'),
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: AI_SYSTEM_PROMPT,
-        },
-        {
-          role: 'user',
-          content: await buildOpenAiContent(prompt, files, userId),
-        },
-      ],
-    }),
-  })
-
-  if (!openAiResponse.ok) {
-    throw new ApiError(502, 'The AI draft service is temporarily unavailable. Please try again shortly.', {
-      expose: true,
-    })
-  }
-
-  const openAiPayload = await openAiResponse.json()
-  const messageContent = openAiPayload.choices?.[0]?.message?.content
-
-  if (typeof messageContent === 'string') {
-    return messageContent
-  }
-
-  if (Array.isArray(messageContent)) {
-    return messageContent
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n')
-  }
-
-  return ''
-}
-
-async function buildOpenAiContent(prompt, files, userId) {
-  const content = [{ type: 'text', text: prompt }]
-  const attachments = await buildAttachmentBlocks(files, userId)
-
-  for (const attachment of attachments) {
-    if (attachment.type === 'image') {
-      content.push({
-        type: 'image_url',
-        image_url: {
-          url: `data:${attachment.source.media_type};base64,${attachment.source.data}`,
-        },
-      })
-      continue
-    }
-
-    if (attachment.type === 'document') {
-      content.push({
-        type: 'text',
-        text: `Uploaded PDF evidence file: ${attachment.title}. Use the user's entered facts and the upload metadata for context.`,
-      })
-    }
-  }
-
-  return content
 }
 
 function normalizeLetters(rawLetters, agencies, issues) {
@@ -465,7 +230,7 @@ async function resolveOwnedUploads(fileIds, userId) {
 
   const { data, error } = await supabaseAdmin
     .from('uploads')
-    .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, created_at')
+    .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, report_bureau, created_at')
     .eq('user_id', userId)
     .in('id', fileIds)
 

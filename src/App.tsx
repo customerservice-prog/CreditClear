@@ -5,7 +5,7 @@ import { useAuthContext } from './context/useAuthContext'
 import { useSubscriptionContext } from './context/useSubscriptionContext'
 import { createCheckoutRequest, createPortalRequest } from './lib/apiClient'
 import { trackEvent, trackPageView } from './lib/analytics'
-import { streamGeneratedLetters } from './lib/claude'
+import { streamGeneratedLetters } from './lib/letterStream'
 import { createInitialState } from './lib/constants'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { buildLetterFileName } from './lib/formatters'
@@ -15,10 +15,10 @@ import { formatAuthError } from './lib/authErrors'
 import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
-import type { DisputeDetail, Letter } from './types'
+import { validateFileCoverageForAgencies } from './lib/reportCoverage'
+import type { DisputeDetail, Letter, ReportBureauTag } from './types'
 import { getBlogPostBySlug } from './data/blogPosts'
 import { getPublicEnv } from './lib/publicEnv'
-import { isOfflineDraftMode } from './lib/offlineDrafts'
 import { SITE_URL } from './lib/site'
 
 const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
@@ -30,6 +30,9 @@ const BureauDisputePage = lazy(() =>
 const ContactPage = lazy(() => import('./pages/ContactPage').then((module) => ({ default: module.ContactPage })))
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
+)
+const CreditReportsPage = lazy(() =>
+  import('./pages/CreditReportsPage').then((module) => ({ default: module.CreditReportsPage })),
 )
 const DisputeDetailPage = lazy(() =>
   import('./pages/DisputeDetailPage').then((module) => ({ default: module.DisputeDetailPage })),
@@ -149,6 +152,11 @@ function AppRoutes() {
       meta = {
         description: 'Complete the guided credit dispute workflow, upload files, and generate editable drafts.',
         title: 'New Dispute | CreditClear AI',
+      }
+    } else if (location.pathname === '/credit-reports') {
+      meta = {
+        description: 'View and download every credit report file you uploaded to CreditClear, with bureau labels.',
+        title: 'My Credit Reports | CreditClear AI',
       }
     } else if (location.pathname.startsWith('/blog/')) {
       const slug = location.pathname.slice('/blog/'.length)
@@ -536,6 +544,12 @@ function AppRoutes() {
       return
     }
 
+    const coverageError = validateFileCoverageForAgencies(appState.agencies, appState.files)
+    if (coverageError) {
+      setBillingMessage(coverageError)
+      return
+    }
+
     setAppState((previous) => ({
       ...previous,
       analyzing: true,
@@ -544,9 +558,7 @@ function AppRoutes() {
       letters: [],
       aiSummary: '',
       recommendations: [],
-      streamMessage: isOfflineDraftMode()
-        ? 'Uploading your report and preparing your dispute drafts…'
-        : 'Uploading your report and preparing Claude...',
+      streamMessage: 'Uploading your report and preparing your dispute drafts…',
     }))
 
     let slowStreamHint: number | undefined
@@ -692,6 +704,26 @@ function AppRoutes() {
     trackEvent('dispute_saved', { letters: letters.length, uploads: appState.files.length })
   }
 
+  async function setFileReportBureau(fileId: string, bureau: ReportBureauTag | null) {
+    if (!authUser) {
+      return
+    }
+    setAppState((previous) => ({
+      ...previous,
+      files: previous.files.map((file) => (file.id === fileId ? { ...file, report_bureau: bureau } : file)),
+    }))
+    const supabase = requireSupabase()
+    const { error } = await supabase
+      .from('uploads')
+      .update({ report_bureau: bureau })
+      .eq('id', fileId)
+      .eq('user_id', authUser.id)
+    if (error) {
+      captureClientError(error, { flow: 'upload_bureau_label' })
+      setBillingMessage('Could not save the bureau label for that file. Try again.')
+    }
+  }
+
   async function addFiles(files: FileList | null) {
     try {
       const nextFiles = await uploadFiles(files, appState.currentDisputeId ?? null)
@@ -766,6 +798,7 @@ function AppRoutes() {
         file_path: upload.file_path,
         id: upload.id,
         name: upload.file_name,
+        report_bureau: (upload.report_bureau as ReportBureauTag | null) ?? null,
         size: upload.file_size,
         type: upload.mime_type,
       })),
@@ -1076,6 +1109,24 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/credit-reports"
+          element={
+            authUser ? (
+              <CreditReportsPage
+                appMessage={billingMessage}
+                appTab="disputes"
+                onAppTabChange={handleWorkspaceTabChange}
+                onShowHome={() => navigate('/')}
+                onSignOut={() => void signOutUser()}
+                statusLabel={subscription.statusLabel}
+                userDisplayName={userDisplayName}
+              />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
+        />
+        <Route
           path="/disputes/new"
           element={
             authUser ? (
@@ -1115,6 +1166,7 @@ function AppRoutes() {
                   }))
                 }
                 onResetApp={resetApp}
+                onSetFileReportBureau={(fileId, bureau) => void setFileReportBureau(fileId, bureau)}
                 onSetOpenLetter={(id) => setAppState((previous) => ({ ...previous, openLetter: id }))}
                 onSetSelectedAgencies={(agencies) => setAppState((previous) => ({ ...previous, agencies }))}
                 onSetSelectedIssues={(issues) => setAppState((previous) => ({ ...previous, issues }))}
@@ -1232,7 +1284,7 @@ function routeRequiresSessionGate(pathname: string): boolean {
   if (pathname === '/app') {
     return true
   }
-  if (['/dashboard', '/billing', '/settings'].includes(pathname)) {
+  if (['/dashboard', '/billing', '/settings', '/credit-reports'].includes(pathname)) {
     return true
   }
   if (pathname.startsWith('/disputes/')) {

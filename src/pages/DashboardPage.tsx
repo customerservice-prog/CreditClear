@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { formatDateLabel } from '../lib/formatters'
 import type { AppTab, DisputeRecord } from '../types'
@@ -73,6 +74,18 @@ export function DashboardPage({
             <button className="btn btn-ghost" onClick={onOpenBilling} type="button">
               Manage Billing
             </button>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-t">Credit report files</div>
+          <div className="card-s">
+            Open a single place to view or download every report PDF or image you have uploaded, with bureau labels.
+          </div>
+          <div className="btn-row">
+            <Link className="btn btn-gold" style={{ textAlign: 'center', textDecoration: 'none' }} to="/credit-reports">
+              My Credit Reports →
+            </Link>
           </div>
         </div>
       </div>

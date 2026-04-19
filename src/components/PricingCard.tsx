@@ -39,11 +39,11 @@ export function PricingCard({
         </div>
         <div className="pf">
           <span className="pf-ck">✓</span>
-          <span>Credit report upload &amp; AI analysis</span>
+          <span>Credit report upload &amp; optional attachments</span>
         </div>
         <div className="pf">
           <span className="pf-ck">✓</span>
-          <span>Claude-assisted structured dispute drafts</span>
+          <span>Structured dispute drafts tailored to your selections</span>
         </div>
       </div>
       <button

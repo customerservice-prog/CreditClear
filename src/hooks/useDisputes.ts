@@ -51,7 +51,7 @@ export function useDisputes(userId?: string) {
         .order('created_at', { ascending: true }),
       supabase
         .from('uploads')
-        .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, created_at')
+        .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, report_bureau, created_at')
         .eq('dispute_id', disputeId)
         .order('created_at', { ascending: true }),
     ])

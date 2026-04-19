@@ -6,7 +6,8 @@ Production-oriented Vite + React SaaS app with:
 - A real `7-day` no-card trial stored in Supabase
 - Stripe checkout after trial expiration for the `$49/month` plan
 - Stripe billing portal access for subscription management
-- Claude-powered dispute-draft generation through server-only Vercel APIs
+- Built-in structured dispute-draft generation (no third-party LLM API keys) through server-only `/api` routes
+- Per-bureau labeling of uploaded credit report files, a **My Credit Reports** library (`/credit-reports`), and drafts that reference the files matched to each bureau
 - Saved disputes, letters, and uploads in Supabase
 - Original dark luxury UI preserved and adapted into a routed app
 
@@ -14,7 +15,7 @@ Production-oriented Vite + React SaaS app with:
 
 - Secrets stay server-side; only `VITE_*` variables are exposed to the client.
 - Supabase RLS is required on every user-data table and the included migration (`supabase/migrations/20260419000000_initial_schema.sql`) locks `subscriptions` to server-managed writes only.
-- The AI generation route verifies auth, checks subscription/trial access server-side, resolves uploads from DB records owned by the caller, and rate-limits repeated generation attempts.
+- The letter-generation route verifies auth, checks subscription/trial access server-side, resolves uploads from DB records owned by the caller (including bureau labels), and rate-limits repeated generation attempts.
 - Upload metadata is validated server-side and must stay inside the authenticated user's storage prefix.
 - Vercel response headers include CSP, `X-Frame-Options`, `nosniff`, HSTS, and related hardening headers.
 
@@ -50,13 +51,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_PRICE_ID=
 STRIPE_WEBHOOK_SECRET=
-
-AI_API_KEY=
-AI_MODEL_NAME=
-
-# Optional provider-specific alias
-ANTHROPIC_API_KEY=
 ```
+
+Letter generation does **not** use `AI_API_KEY`, Anthropic, or OpenAI—see `.env.example`.
 
 ## Local setup
 
@@ -66,7 +63,7 @@ ANTHROPIC_API_KEY=
 npm install
 ```
 
-2. Run `supabase/migrations/20260419000000_initial_schema.sql` in the Supabase SQL editor (paste the file contents and execute), or from a machine with the DB password: `DATABASE_URL="postgresql://..." npm run db:apply`.
+2. Run all SQL migrations in `supabase/migrations/` in order in the Supabase SQL editor, or from a machine with the DB password: `DATABASE_URL="postgresql://..." npm run db:apply` (applies every `.sql` file in that folder in sorted order).
 
 3. In Supabase Auth:
 
@@ -109,17 +106,15 @@ npm run dev:full
 npm test
 ```
 
-## AI integration
+## Letter generation and credit reports
 
-`/api/generate-dispute-draft` sends the selected agencies, selected issues, personal info, and uploaded report files to the configured AI provider.
+`/api/generate-dispute-draft` loads the caller’s authenticated context, validates subscription/trial access, resolves **upload `id`s** against the `uploads` table (including `report_bureau`), and streams structured draft letters as Server-Sent Events—no external LLM.
 
-- The AI key stays server-side.
-- The endpoint returns streamed server-sent events.
-- The frontend adds letters progressively as they arrive.
-- Output is intentionally framed as editable draft assistance, not guaranteed outcomes or legal advice.
-- A lightweight in-memory rate limit guards repeated generation bursts per user/session.
-- OpenAI keys in `AI_API_KEY` use `gpt-4.1-mini` by default.
-- Anthropic keys can still be used through `ANTHROPIC_API_KEY` or an `AI_API_KEY` that starts with `sk-ant-`.
+- Users upload PDFs or images to private storage; each row in `uploads` can be labeled **Equifax**, **Experian**, **TransUnion**, or **combined** (one tri-merge file).
+- The dashboard and workspace link to **`/credit-reports`**, which lists every upload with Open / Download via time-limited signed URLs.
+- Each generated letter lists the filenames matched to that bureau (or warns when labels do not cover a selected bureau). Users must still edit drafts with details taken from their real reports.
+
+CreditClear does **not** pull reports automatically from the bureaus; users supply files from their bureau, AnnualCreditReport.com flow, or other lawful sources they already use.
 
 ## Monitoring and analytics
 
@@ -133,7 +128,7 @@ npm test
 1. Import the repo into Vercel.
 2. Set `Build Command` to `npm run build`.
 3. Set `Output Directory` to `dist`.
-4. Add every variable from `.env.example`.
+4. Add every variable from `.env.example` (no AI vendor keys required).
 5. Set `APP_URL` and `VITE_APP_URL` to the production domain.
 6. Add the same production URLs to Supabase Auth.
 7. Point Stripe webhooks to `https://your-domain.vercel.app/api/stripe-webhook`.
@@ -169,7 +164,7 @@ src/
   lib/
     api.ts
     apiClient.ts
-    claude.ts
+    letterStream.ts
     constants.ts
     formatters.ts
     stripe.ts
@@ -212,13 +207,14 @@ api/
 supabase/
   migrations/
     20260419000000_initial_schema.sql
+    20260420000000_upload_report_bureau.sql
 ```
 
 ## Notes
 
-- `npm run dev` is enough for UI work, but `npm run dev:full` is the correct local command when testing `/api/*`, Stripe flows, or AI generation.
+- `npm run dev` is enough for UI work, but `npm run dev:full` is the correct local command when testing `/api/*`, Stripe flows, or letter generation.
 - Re-run the latest migration in `supabase/migrations/` (or `npm run db:apply` with `DATABASE_URL`) after pulling changes so RLS policies and constraints stay in sync before launch.
-- The client never receives `AI_API_KEY` / `ANTHROPIC_API_KEY`, `STRIPE_SECRET_KEY`, or the Supabase service-role key.
+- The client never receives `STRIPE_SECRET_KEY` or the Supabase service-role key.
 - Trial access is controlled from `subscriptions.trial_ends_at`.
 - Stripe webhooks update the `subscriptions` table with paid status.
 - Upload metadata is stored in the `uploads` table and the files themselves live in the private `private-uploads` storage bucket.
