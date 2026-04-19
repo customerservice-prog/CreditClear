@@ -34,10 +34,8 @@ export function CreditReportsPage({
     const supabase = requireSupabase()
     setLoading(true)
     setError('')
-    const result = await supabase
-      .from('uploads')
-      .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, report_bureau, created_at')
-      .order('created_at', { ascending: false })
+    // Use * so older DBs without report_bureau still return 200; column appears after migration.
+    const result = await supabase.from('uploads').select('*').order('created_at', { ascending: false })
 
     setLoading(false)
     if (result.error) {

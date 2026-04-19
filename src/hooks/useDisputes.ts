@@ -49,11 +49,7 @@ export function useDisputes(userId?: string) {
         .select('id, dispute_id, user_id, bureau, issue_type, draft_text, editable_text, created_at, updated_at')
         .eq('dispute_id', disputeId)
         .order('created_at', { ascending: true }),
-      supabase
-        .from('uploads')
-        .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, report_bureau, created_at')
-        .eq('dispute_id', disputeId)
-        .order('created_at', { ascending: true }),
+      supabase.from('uploads').select('*').eq('dispute_id', disputeId).order('created_at', { ascending: true }),
     ])
 
     if (disputeResult.error) {
