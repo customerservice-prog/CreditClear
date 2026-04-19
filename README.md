@@ -112,7 +112,7 @@ npm test
 
 - Users upload PDFs or images to private storage; each row in `uploads` can be labeled **Equifax**, **Experian**, **TransUnion**, or **combined** (one tri-merge file).
 - The dashboard and workspace link to **`/credit-reports`**, which lists every upload with Open / Download via time-limited signed URLs.
-- Each generated letter lists the filenames matched to that bureau (or warns when labels do not cover a selected bureau). Users must still edit drafts with details taken from their real reports.
+- Each generated letter includes stronger FCRA-style wording plus **automatic text read from uploaded PDFs** (when the PDF is text-based; scanned/image PDFs may need manual entry). Users must still verify every line against their real report.
 
 CreditClear does **not** pull reports automatically from the bureaus; users supply files from their bureau, AnnualCreditReport.com flow, or other lawful sources they already use.
 
