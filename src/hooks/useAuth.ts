@@ -35,55 +35,57 @@ export function useAuth() {
   const [appUser, setAppUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(isSupabaseConfigured)
   const sessionProfileRefreshUserIdRef = useRef<string | null>(null)
+  /** Keeps latest user for refreshAppUser without putting authUser in useCallback deps (avoids re-subscribing onAuthStateChange every auth tick). */
+  const authUserRef = useRef<User | null>(null)
 
-  const refreshAppUser = useCallback(
-    async (user = authUser) => {
-      if (!user || !isSupabaseConfigured) {
-        setAppUser(null)
-        return null
-      }
+  authUserRef.current = authUser
 
-      const supabase = requireSupabase()
-      const profileResult = await supabase
-        .from('profiles')
-        .upsert(
-          {
-            id: user.id,
-            email: user.email || '',
-            full_name: user.user_metadata?.full_name || null,
-          },
-          { onConflict: 'id' },
-        )
-        .select('id, email, full_name, created_at')
-        .single()
+  const refreshAppUser = useCallback(async (user?: User | null) => {
+    const target = user ?? authUserRef.current
+    if (!target || !isSupabaseConfigured) {
+      setAppUser(null)
+      return null
+    }
 
-      if (profileResult.error) {
-        throw profileResult.error
-      }
+    const supabase = requireSupabase()
+    const profileResult = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: target.id,
+          email: target.email || '',
+          full_name: target.user_metadata?.full_name || null,
+        },
+        { onConflict: 'id' },
+      )
+      .select('id, email, full_name, created_at')
+      .single()
 
-      const subscriptionResult = await getSubscriptionRecord(supabase, user.id)
+    if (profileResult.error) {
+      throw profileResult.error
+    }
 
-      const nextUser: AppUser = {
-        id: profileResult.data.id,
-        email: profileResult.data.email,
-        name: profileResult.data.full_name,
-        created_at: profileResult.data.created_at,
-        subscription_id: subscriptionResult?.id ?? null,
-        stripe_customer_id: subscriptionResult?.stripe_customer_id ?? null,
-        stripe_subscription_id: subscriptionResult?.stripe_subscription_id ?? null,
-        subscription_status: subscriptionResult?.status ?? null,
-        subscription_price_id: subscriptionResult?.price_id ?? null,
-        subscription_current_period_end: subscriptionResult?.current_period_end ?? null,
-        trial_ends_at: subscriptionResult?.trial_ends_at ?? null,
-      }
+    const subscriptionResult = await getSubscriptionRecord(supabase, target.id)
 
-      const mirrored = await mirrorSubscriptionFromServer(nextUser)
+    const nextUser: AppUser = {
+      id: profileResult.data.id,
+      email: profileResult.data.email,
+      name: profileResult.data.full_name,
+      created_at: profileResult.data.created_at,
+      subscription_id: subscriptionResult?.id ?? null,
+      stripe_customer_id: subscriptionResult?.stripe_customer_id ?? null,
+      stripe_subscription_id: subscriptionResult?.stripe_subscription_id ?? null,
+      subscription_status: subscriptionResult?.status ?? null,
+      subscription_price_id: subscriptionResult?.price_id ?? null,
+      subscription_current_period_end: subscriptionResult?.current_period_end ?? null,
+      trial_ends_at: subscriptionResult?.trial_ends_at ?? null,
+    }
 
-      setAppUser(mirrored)
-      return mirrored
-    },
-    [authUser],
-  )
+    const mirrored = await mirrorSubscriptionFromServer(nextUser)
+
+    setAppUser(mirrored)
+    return mirrored
+  }, [])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {

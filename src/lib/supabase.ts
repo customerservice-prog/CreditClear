@@ -13,6 +13,8 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 const AUTH_GOTRUE_TOKEN_TIMEOUT_MS = 45_000
 const AUTH_SETTINGS_TIMEOUT_MS = 25_000
 const AUTH_USER_LOGOUT_TIMEOUT_MS = 15_000
+/** PostgREST / storage can exceed 15s; aborting mid-request often surfaces as net::ERR_HTTP2_PROTOCOL_ERROR. */
+const REST_FETCH_TIMEOUT_MS = 120_000
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000
 
 function fetchWithAbort(
@@ -62,6 +64,10 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
 
   if (url.includes('/auth/v1/user') || url.includes('/auth/v1/logout')) {
     return fetchWithAbort(input, init, AUTH_USER_LOGOUT_TIMEOUT_MS)
+  }
+
+  if (url.includes('/rest/v1/') || url.includes('/storage/v1/')) {
+    return fetchWithAbort(input, init, REST_FETCH_TIMEOUT_MS)
   }
 
   return fetchWithAbort(input, init, DEFAULT_FETCH_TIMEOUT_MS)
