@@ -77,9 +77,7 @@ export function useAuth() {
         trial_ends_at: subscriptionResult?.trial_ends_at ?? null,
       }
 
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-      const mirrored = token ? await mirrorSubscriptionFromServer(nextUser, token) : nextUser
+      const mirrored = await mirrorSubscriptionFromServer(nextUser)
 
       setAppUser(mirrored)
       return mirrored
@@ -243,12 +241,9 @@ export function useAuth() {
  * The browser only reads Supabase directly, so without this mirror ops accounts show "Expired"
  * even though /api/* grants access. Bootstrap returns the same subscription row the API uses.
  */
-async function mirrorSubscriptionFromServer(
-  clientUser: AppUser,
-  accessToken: string,
-): Promise<AppUser> {
+async function mirrorSubscriptionFromServer(clientUser: AppUser): Promise<AppUser> {
   try {
-    const { user: serverUser } = await bootstrapUserRequest(accessToken)
+    const { user: serverUser } = await bootstrapUserRequest()
     if (!serverUser.id || serverUser.id !== clientUser.id) {
       return clientUser
     }

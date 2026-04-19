@@ -1,7 +1,8 @@
 import type { AppInfo, CreditFile, Letter, LetterStreamEvent } from '../types'
+import { getAccessTokenForApi } from './authSession'
+import { requireSupabase } from './supabase'
 
 interface GenerateLettersInput {
-  accessToken: string
   agencies: string[]
   files: CreditFile[]
   info: AppInfo
@@ -60,7 +61,6 @@ function dispatchSseFromLineBuffer(
 const GENERATION_FETCH_TIMEOUT_MS = 22 * 60 * 1000
 
 export async function streamGeneratedLetters({
-  accessToken,
   agencies,
   files,
   info,
@@ -79,21 +79,29 @@ export async function streamGeneratedLetters({
       })
   }, GENERATION_FETCH_TIMEOUT_MS)
 
-  try {
-    const response = await fetch('/api/generate-dispute-draft', {
+  const bodyPayload = { agencies, files, info, issues }
+
+  const runFetch = (token: string) =>
+    fetch('/api/generate-dispute-draft', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        agencies,
-        files,
-        info,
-        issues,
-      }),
+      body: JSON.stringify(bodyPayload),
       signal: abortController.signal,
     })
+
+  try {
+    let token = await getAccessTokenForApi()
+    let response = await runFetch(token)
+
+    if (!response.ok && response.status === 401) {
+      const supabase = requireSupabase()
+      await supabase.auth.refreshSession()
+      token = await getAccessTokenForApi()
+      response = await runFetch(token)
+    }
 
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { error?: string }

@@ -1,4 +1,6 @@
 import type { AppUser } from '../types'
+import { getAccessTokenForApi } from './authSession'
+import { requireSupabase } from './supabase'
 
 interface JsonResponse {
   error?: string
@@ -15,23 +17,33 @@ function isAbortError(error: unknown) {
 
 async function apiRequest<T>(
   path: string,
-  accessToken: string,
   body?: unknown,
   timeoutMs: number = DEFAULT_API_TIMEOUT_MS,
 ) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  try {
-    const response = await fetch(path, {
+  const run = async (token: string) =>
+    fetch(path, {
       method: 'POST',
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: body ? JSON.stringify(body) : undefined,
     })
+
+  try {
+    let accessToken = await getAccessTokenForApi()
+    let response = await run(accessToken)
+
+    if (response.status === 401) {
+      const supabase = requireSupabase()
+      await supabase.auth.refreshSession()
+      accessToken = await getAccessTokenForApi()
+      response = await run(accessToken)
+    }
 
     const contentType = response.headers.get('content-type') || ''
     if (!contentType.includes('application/json')) {
@@ -59,16 +71,16 @@ async function apiRequest<T>(
   }
 }
 
-export async function createCheckoutRequest(accessToken: string) {
-  return apiRequest<{ url: string }>('/api/create-checkout', accessToken)
+export async function createCheckoutRequest() {
+  return apiRequest<{ url: string }>('/api/create-checkout')
 }
 
-export async function createPortalRequest(accessToken: string) {
-  return apiRequest<{ url: string }>('/api/create-portal', accessToken)
+export async function createPortalRequest() {
+  return apiRequest<{ url: string }>('/api/create-portal')
 }
 
-export async function bootstrapUserRequest(accessToken: string) {
-  const payload = await apiRequest<{ user: AppUser }>('/api/bootstrap-user', accessToken)
+export async function bootstrapUserRequest() {
+  const payload = await apiRequest<{ user: AppUser }>('/api/bootstrap-user')
   if (!payload.user?.id) {
     throw new Error('Invalid account response from server.')
   }
@@ -119,16 +131,13 @@ export async function createAccountRequest(body: {
   }
 }
 
-export async function saveUploadMetadataRequest(
-  accessToken: string,
-  body: {
-    disputeId?: string | null
-    fileName: string
-    filePath: string
-    fileSize: number
-    mimeType: string
-  },
-) {
+export async function saveUploadMetadataRequest(body: {
+  disputeId?: string | null
+  fileName: string
+  filePath: string
+  fileSize: number
+  mimeType: string
+}) {
   return apiRequest<{
     upload: {
       id: string
@@ -140,5 +149,5 @@ export async function saveUploadMetadataRequest(
       file_size: number
       created_at: string
     }
-  }>('/api/save-upload-metadata', accessToken, body)
+  }>('/api/save-upload-metadata', body)
 }

@@ -6,12 +6,12 @@ import type { CreditFile, UploadRecord } from '../types'
 
 const BUCKET = 'private-uploads'
 
-export function useUploads(userId?: string, accessToken?: string) {
+export function useUploads(userId?: string) {
   const [uploading, setUploading] = useState(false)
 
   const uploadFiles = useCallback(
     async (files: FileList | null, disputeId?: string | null) => {
-      if (!files?.length || !userId || !accessToken) {
+      if (!files?.length || !userId) {
         return [] as CreditFile[]
       }
 
@@ -38,7 +38,7 @@ export function useUploads(userId?: string, accessToken?: string) {
           }
 
           try {
-            const metadata = await saveUploadMetadataRequest(accessToken, {
+            const metadata = await saveUploadMetadataRequest({
               disputeId,
               fileName: sanitizeUploadFileName(file.name),
               filePath,
@@ -58,7 +58,7 @@ export function useUploads(userId?: string, accessToken?: string) {
         setUploading(false)
       }
     },
-    [accessToken, userId],
+    [userId],
   )
 
   return {

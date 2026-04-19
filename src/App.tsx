@@ -134,7 +134,7 @@ function AppRoutes() {
   const [appState, setAppState] = useState(createInitialState)
   const letterSaveTimers = useRef<Record<string, number>>({})
   const { disputes, error: disputesError, getDetail, loading: disputesLoading, refresh: refreshDisputes, setDisputes, updateLetterText } = useDisputes(authUser?.id)
-  const { uploadFiles } = useUploads(authUser?.id, session?.access_token)
+  const { uploadFiles } = useUploads(authUser?.id)
 
   useEffect(() => {
     let meta: { description: string; title: string }
@@ -339,7 +339,7 @@ function AppRoutes() {
       setBillingLoading(true)
       setBillingMessage('')
       trackEvent('begin_checkout', { location: location.pathname })
-      const response = await createCheckoutRequest(session.access_token)
+      const response = await createCheckoutRequest()
       window.location.assign(response.url)
     } catch (error) {
       captureClientError(error, { flow: 'checkout' })
@@ -359,7 +359,7 @@ function AppRoutes() {
       setBillingLoading(true)
       setBillingMessage('')
       trackEvent('open_billing_portal', { location: location.pathname })
-      const response = await createPortalRequest(session.access_token)
+      const response = await createPortalRequest()
       window.location.assign(response.url)
     } catch (error) {
       captureClientError(error, { flow: 'billing_portal' })
@@ -569,7 +569,6 @@ function AppRoutes() {
       }, 6000)
 
       await streamGeneratedLetters({
-        accessToken: session.access_token,
         agencies: appState.agencies,
         files: appState.files,
         info: appState.info,

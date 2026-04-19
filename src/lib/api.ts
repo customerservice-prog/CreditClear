@@ -1,8 +1,11 @@
+import { getAccessTokenForApi } from './authSession'
+
 interface CheckoutResponse {
   url: string
 }
 
-async function postJson<T>(path: string, accessToken: string) {
+async function postJson<T>(path: string) {
+  const accessToken = await getAccessTokenForApi()
   const response = await fetch(path, {
     method: 'POST',
     headers: {
@@ -20,6 +23,6 @@ async function postJson<T>(path: string, accessToken: string) {
   return payload
 }
 
-export async function createCheckoutSession(accessToken: string) {
-  return postJson<CheckoutResponse>('/api/create-checkout', accessToken)
+export async function createCheckoutSession() {
+  return postJson<CheckoutResponse>('/api/create-checkout')
 }
