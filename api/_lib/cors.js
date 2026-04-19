@@ -2,7 +2,12 @@ export function applyCors(request, response, methods = ['POST']) {
   const allowedOrigins = getAllowedOrigins()
   const origin = request.headers.origin
 
-  if (origin && allowedOrigins.length && !allowedOrigins.includes(origin)) {
+  if (
+    origin &&
+    allowedOrigins.length &&
+    !allowedOrigins.includes(origin) &&
+    !originMatchesRequestHost(origin, request.headers.host)
+  ) {
     response.status(403).json({ error: 'This origin is not allowed.' })
     return true
   }
@@ -21,6 +26,20 @@ export function applyCors(request, response, methods = ['POST']) {
   }
 
   return false
+}
+
+function originMatchesRequestHost(origin, hostHeader) {
+  if (!hostHeader) {
+    return false
+  }
+
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase()
+    const requestHost = String(hostHeader).split(':')[0].toLowerCase()
+    return hostname === requestHost
+  } catch {
+    return false
+  }
 }
 
 function getAllowedOrigins() {
