@@ -547,19 +547,19 @@ function AppRoutes() {
     const { error } = await supabase.from('profiles').update({ saved_contact }).eq('id', authUser.id)
 
     if (error) {
-      throw error
+      captureClientError(error, { flow: 'persist_profile_contact' })
+      return
     }
 
-    await refreshAppUser(authUser)
+    try {
+      await refreshAppUser(authUser)
+    } catch (error) {
+      captureClientError(error, { flow: 'refresh_after_profile_save' })
+    }
   }
 
   async function handleAdvanceFromPersonalStep() {
-    try {
-      await persistProfileContact(appState.info)
-    } catch (error) {
-      captureClientError(error, { flow: 'persist_profile_contact' })
-      setBillingMessage('We could not save your contact info to your profile. You can still continue.')
-    }
+    await persistProfileContact(appState.info)
     setAppState((previous) => ({ ...previous, step: 1 }))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }

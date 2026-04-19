@@ -58,7 +58,7 @@ export function useAuth() {
         },
         { onConflict: 'id' },
       )
-      .select('id, email, full_name, created_at, saved_contact')
+      .select('id, email, full_name, created_at')
       .single()
 
     if (profileResult.error) {
@@ -67,9 +67,14 @@ export function useAuth() {
 
     const subscriptionResult = await getSubscriptionRecord(supabase, target.id)
 
-    const saved = profileResult.data.saved_contact
-    const saved_contact =
-      saved && typeof saved === 'object' && !Array.isArray(saved) ? (saved as AppUser['saved_contact']) : undefined
+    /** Separate read: avoids 400 on upsert when `saved_contact` column is not migrated yet. */
+    let saved_contact: AppUser['saved_contact'] = undefined
+    const savedResult = await supabase.from('profiles').select('saved_contact').eq('id', target.id).maybeSingle()
+    if (!savedResult.error && savedResult.data) {
+      const saved = savedResult.data.saved_contact
+      saved_contact =
+        saved && typeof saved === 'object' && !Array.isArray(saved) ? (saved as AppUser['saved_contact']) : undefined
+    }
 
     const nextUser: AppUser = {
       id: profileResult.data.id,
