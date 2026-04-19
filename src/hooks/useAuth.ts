@@ -1,8 +1,29 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useState } from 'react'
 import { bootstrapUserRequest, createAccountRequest } from '../lib/apiClient'
+import { captureClientError } from '../lib/monitoring'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
+
+const GET_SESSION_TIMEOUT_MS = 20_000
+const REFRESH_PROFILE_BUDGET_MS = 25_000
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+async function raceRefreshAppUser(
+  refresh: () => Promise<AppUser | null>,
+  context: string,
+) {
+  try {
+    await Promise.race([refresh(), sleep(REFRESH_PROFILE_BUDGET_MS)])
+  } catch (error) {
+    captureClientError(error, { flow: context })
+  }
+}
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null)
@@ -76,20 +97,29 @@ export function useAuth() {
     let cancelled = false
 
     void (async () => {
-      const { data } = await supabase.auth.getSession()
-      if (cancelled) {
-        return
-      }
+      try {
+        const { data } = await Promise.race([
+          supabase.auth.getSession(),
+          sleep(GET_SESSION_TIMEOUT_MS).then(() => ({ data: { session: null as Session | null } })),
+        ])
 
-      setSession(data.session ?? null)
-      setAuthUser(data.session?.user ?? null)
+        if (cancelled) {
+          return
+        }
 
-      if (data.session?.user) {
-        await refreshAppUser(data.session.user, data.session.access_token)
-      }
+        const nextSession = data.session ?? null
+        setSession(nextSession)
+        setAuthUser(nextSession?.user ?? null)
 
-      if (!cancelled) {
-        setLoading(false)
+        if (nextSession?.user) {
+          const user = nextSession.user
+          const token = nextSession.access_token
+          void raceRefreshAppUser(() => refreshAppUser(user, token), 'hydrate_profile')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     })()
 
@@ -105,7 +135,10 @@ export function useAuth() {
         setAuthUser(nextSession?.user ?? null)
 
         if (nextSession?.user) {
-          await refreshAppUser(nextSession.user, nextSession.access_token)
+          void raceRefreshAppUser(
+            () => refreshAppUser(nextSession.user, nextSession.access_token),
+            'auth_state_profile',
+          )
         } else {
           setAppUser(null)
         }
@@ -130,7 +163,10 @@ export function useAuth() {
     }
 
     if (data.user) {
-      await refreshAppUser(data.user, data.session?.access_token)
+      await raceRefreshAppUser(
+        () => refreshAppUser(data.user!, data.session?.access_token),
+        'sign_in_profile',
+      )
     }
 
     return data
@@ -142,7 +178,10 @@ export function useAuth() {
     const signInResult = await signIn(email, password)
 
     if (signInResult.user && signInResult.session?.access_token) {
-      await refreshAppUser(signInResult.user, signInResult.session.access_token)
+      await raceRefreshAppUser(
+        () => refreshAppUser(signInResult.user!, signInResult.session!.access_token),
+        'sign_up_profile',
+      )
     }
 
     return signInResult
