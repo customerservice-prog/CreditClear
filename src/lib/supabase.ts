@@ -6,8 +6,6 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 
 const AUTH_REFRESH_TOKEN_TIMEOUT_MS = 10_000
-/** When grant_type cannot be read (opaque Request body), cap wait so a stuck refresh cannot hang forever. */
-const AUTH_TOKEN_FALLBACK_TIMEOUT_MS = 25_000
 const AUTH_USER_LOGOUT_TIMEOUT_MS = 20_000
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000
 
@@ -16,6 +14,15 @@ function grantTypeFromInit(init?: RequestInit): string | undefined {
     return undefined
   }
   if (typeof init.body === 'string') {
+    const trimmed = init.body.trim()
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed) as { grant_type?: unknown }
+        return typeof parsed.grant_type === 'string' ? parsed.grant_type : undefined
+      } catch {
+        return undefined
+      }
+    }
     try {
       return new URLSearchParams(init.body).get('grant_type') ?? undefined
     } catch {
@@ -83,11 +90,9 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
     if (grantType === 'refresh_token') {
       return fetchWithAbort(input, init, AUTH_REFRESH_TOKEN_TIMEOUT_MS)
     }
-    if (grantType) {
-      // Password, PKCE, etc. — use native fetch so our refresh timeout never cancels sign-in.
-      return fetch(input, init)
-    }
-    return fetchWithAbort(input, init, AUTH_TOKEN_FALLBACK_TIMEOUT_MS)
+    // Password, PKCE, or grant_type on URL/body we could not read synchronously — never apply a client abort.
+    // (A 25s fallback was still killing password logins when the body was JSON or the Request body was opaque.)
+    return fetch(input, init)
   }
 
   if (url.includes('/auth/v1/user') || url.includes('/auth/v1/logout')) {
