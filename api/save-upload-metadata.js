@@ -44,7 +44,7 @@ export default async function handler(request, response) {
         report_bureau: metadata.reportBureau,
         user_id: authUser.id,
       })
-      .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, report_bureau, created_at')
+      .select('*')
       .single()
 
     if (inserted.error) {

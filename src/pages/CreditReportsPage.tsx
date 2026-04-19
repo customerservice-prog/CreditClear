@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AppShell } from '../components/layout/AppShell'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
 import { requireSupabase } from '../lib/supabaseClient'
+import { listUploadsForCurrentUser } from '../lib/uploadQueries'
 import type { AppTab, UploadRecord } from '../types'
 
 const BUCKET = 'private-uploads'
@@ -34,8 +35,7 @@ export function CreditReportsPage({
     const supabase = requireSupabase()
     setLoading(true)
     setError('')
-    // Use * so older DBs without report_bureau still return 200; column appears after migration.
-    const result = await supabase.from('uploads').select('*').order('created_at', { ascending: false })
+    const result = await listUploadsForCurrentUser(supabase)
 
     setLoading(false)
     if (result.error) {

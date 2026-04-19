@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { formatAgencyName, formatIssueLabel } from '../lib/formatters'
 import { requireSupabase } from '../lib/supabaseClient'
+import { listUploadsForDispute } from '../lib/uploadQueries'
 import type { DisputeDetail, DisputeRecord, Letter, UploadRecord } from '../types'
 
 export function useDisputes(userId?: string) {
@@ -49,7 +50,7 @@ export function useDisputes(userId?: string) {
         .select('id, dispute_id, user_id, bureau, issue_type, draft_text, editable_text, created_at, updated_at')
         .eq('dispute_id', disputeId)
         .order('created_at', { ascending: true }),
-      supabase.from('uploads').select('*').eq('dispute_id', disputeId).order('created_at', { ascending: true }),
+      listUploadsForDispute(supabase, disputeId),
     ])
 
     if (disputeResult.error) {

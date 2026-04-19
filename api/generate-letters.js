@@ -358,7 +358,7 @@ async function resolveOwnedUploads(fileIds, userId) {
 
   const { data, error } = await supabaseAdmin
     .from('uploads')
-    .select('id, user_id, dispute_id, file_path, file_name, mime_type, file_size, report_bureau, created_at')
+    .select('*')
     .eq('user_id', userId)
     .in('id', fileIds)
 
