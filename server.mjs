@@ -42,6 +42,20 @@ const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
 
+    if (url.pathname === '/env.js') {
+      const publicEnv = {}
+      for (const [key, value] of Object.entries(process.env)) {
+        if (key.startsWith('VITE_') && typeof value === 'string' && value.length > 0) {
+          publicEnv[key] = value
+        }
+      }
+      response.statusCode = 200
+      response.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end(`window.__ENV__=${JSON.stringify(publicEnv)};`)
+      return
+    }
+
     if (url.pathname.startsWith('/api/')) {
       await handleApiRequest(url.pathname, request, response)
       return

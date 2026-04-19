@@ -1,7 +1,8 @@
 import * as Sentry from '@sentry/react'
+import { getPublicEnv } from './publicEnv'
 
-const dsn = import.meta.env.VITE_SENTRY_DSN
-const environment = import.meta.env.VITE_APP_ENV || 'development'
+const dsn = getPublicEnv('VITE_SENTRY_DSN')
+const environment = getPublicEnv('VITE_APP_ENV') || 'development'
 
 export function initMonitoring() {
   if (!dsn) {

@@ -1,3 +1,5 @@
+import { getPublicEnv } from './publicEnv'
+
 declare global {
   interface Window {
     dataLayer?: unknown[]
@@ -5,7 +7,7 @@ declare global {
   }
 }
 
-const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID
+const measurementId = getPublicEnv('VITE_GA_MEASUREMENT_ID')
 
 export function initAnalytics() {
   if (!measurementId || typeof document === 'undefined') {
