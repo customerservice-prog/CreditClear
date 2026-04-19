@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom'
+import { Navbar } from '../components/Navbar'
+
 interface LoginPageProps {
   authLoading: boolean
   error: string
@@ -9,7 +12,9 @@ interface LoginPageProps {
   onGoogle: () => void
   onLogin: () => void
   onPasswordChange: (value: string) => void
+  onSignIn: () => void
   onSignupRoute: () => void
+  onStartTrial: () => void
   notice: string
 }
 
@@ -24,11 +29,14 @@ export function LoginPage({
   onGoogle,
   onLogin,
   onPasswordChange,
+  onSignIn,
   onSignupRoute,
+  onStartTrial,
   notice,
 }: LoginPageProps) {
   return (
     <div className="page active">
+      <Navbar onHomeClick={onBackHome} onSignIn={onSignIn} onStartTrial={onStartTrial} />
       <div className="hero" style={{ maxWidth: 520 }}>
         <div className="hero-badge"><div className="pulse-dot"></div> Secure Sign In</div>
         <h1>
@@ -57,10 +65,10 @@ export function LoginPage({
             Forgot password? <button onClick={onForgotPassword} type="button">Send reset link</button>
           </div>
           <div className="auth-switch">
-            No account? <button onClick={onSignupRoute} type="button">Create one</button>
+            <Link to="/reset-password">I already have a reset link</Link>
           </div>
-          <div className="btn-row" style={{ justifyContent: 'center' }}>
-            <button className="btn btn-ghost" onClick={onBackHome} type="button">← Back Home</button>
+          <div className="auth-switch">
+            No account? <button onClick={onSignupRoute} type="button">Create one</button>
           </div>
         </div>
       </div>

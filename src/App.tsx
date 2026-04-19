@@ -1,6 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AuthModal } from './components/AuthModal'
 import { useAuthContext } from './context/useAuthContext'
 import { useSubscriptionContext } from './context/useSubscriptionContext'
 import { createCheckoutRequest, createPortalRequest } from './lib/apiClient'
@@ -13,9 +12,10 @@ import { captureClientError } from './lib/monitoring'
 import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
-import type { AuthTab, DisputeDetail, Letter } from './types'
+import type { DisputeDetail, Letter } from './types'
 
 const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
+const ContactPage = lazy(() => import('./pages/ContactPage').then((module) => ({ default: module.ContactPage })))
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 )
@@ -27,6 +27,9 @@ const LegalPage = lazy(() => import('./pages/LegalPage').then((module) => ({ def
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })))
 const NewDisputePage = lazy(() => import('./pages/App').then((module) => ({ default: module.AppPage })))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })))
+const ResetPasswordPage = lazy(() =>
+  import('./pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })),
+)
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 const SignupPage = lazy(() => import('./pages/SignupPage').then((module) => ({ default: module.SignupPage })))
 
@@ -39,6 +42,10 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
     description: 'Review your CreditClear trial status, subscription access, renewal timing, and billing options.',
     title: 'Billing | CreditClear AI',
   },
+  '/contact': {
+    description: 'Reach CreditClear support for account, billing, and product questions.',
+    title: 'Contact | CreditClear AI',
+  },
   '/dashboard': {
     description: 'View saved disputes, start a new workflow, and monitor your current plan status.',
     title: 'Dashboard | CreditClear AI',
@@ -50,6 +57,10 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
   '/login': {
     description: 'Sign in to access your saved disputes, billing details, and draft-generation workflow.',
     title: 'Log In | CreditClear AI',
+  },
+  '/reset-password': {
+    description: 'Set a new CreditClear password after opening the secure link from your email.',
+    title: 'Reset Password | CreditClear AI',
   },
   '/privacy': {
     description: 'Learn how CreditClear stores account data, billing records, and uploaded files.',
@@ -84,8 +95,6 @@ function AppRoutes() {
     signUp,
   } = useAuthContext()
   const subscription = useSubscriptionContext()
-  const [authModalOpen, setAuthModalOpen] = useState(false)
-  const [authTab, setAuthTab] = useState<AuthTab>('signup')
   const [authError, setAuthError] = useState('')
   const [authNotice, setAuthNotice] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
@@ -103,17 +112,6 @@ function AppRoutes() {
   const letterSaveTimers = useRef<Record<string, number>>({})
   const { disputes, error: disputesError, getDetail, loading: disputesLoading, refresh: refreshDisputes, setDisputes, updateLetterText } = useDisputes(authUser?.id)
   const { uploadFiles } = useUploads(authUser?.id, session?.access_token)
-
-  useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setAuthModalOpen(false)
-      }
-    }
-
-    document.addEventListener('keydown', onEscape)
-    return () => document.removeEventListener('keydown', onEscape)
-  }, [])
 
   useEffect(() => {
     const meta = location.pathname.startsWith('/disputes/')
@@ -234,20 +232,7 @@ function AppRoutes() {
     navigate('/disputes/new')
   }
 
-  function openAuth(nextTab: AuthTab) {
-    if (!isSupabaseConfigured) {
-      setBillingMessage('Add your Supabase environment variables before using authentication.')
-      return
-    }
-
-    setAuthError('')
-    setAuthNotice('')
-    setAuthTab(nextTab)
-    setAuthModalOpen(true)
-  }
-
-  function closeAuth() {
-    setAuthModalOpen(false)
+  function clearAuthMessages() {
     setAuthError('')
     setAuthNotice('')
   }
@@ -309,7 +294,7 @@ function AppRoutes() {
       setAuthNotice('')
       await signIn(loginEmail.trim(), loginPassword)
       trackEvent('login_success')
-      closeAuth()
+      clearAuthMessages()
       navigate('/dashboard')
     } catch (error) {
       captureClientError(error, { flow: 'login' })
@@ -355,7 +340,7 @@ function AppRoutes() {
         return
       }
       trackEvent('signup_success')
-      closeAuth()
+      clearAuthMessages()
       navigate('/dashboard')
     } catch (error) {
       captureClientError(error, { flow: 'signup' })
@@ -398,7 +383,7 @@ function AppRoutes() {
       setAuthNotice('')
       const supabase = requireSupabase()
       const redirectTo =
-        typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined
+        typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined
       const result = await supabase.auth.resetPasswordForEmail(loginEmail.trim(), { redirectTo })
 
       if (result.error) {
@@ -730,13 +715,23 @@ function AppRoutes() {
         }
       >
         <Routes>
-        <Route path="/" element={<HomePage onOpenAuth={openAuth} onScrollTo={scrollToSection} />} />
+        <Route
+          path="/"
+          element={
+            <HomePage
+              onScrollTo={scrollToSection}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+            />
+          }
+        />
         <Route
           path="/privacy"
           element={
             <LegalPage
               onHome={() => navigate('/')}
-              onOpenAuth={openAuth}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
               subtitle="How CreditClear handles account data, uploaded documents, billing records, and AI-assisted drafting inputs."
               title="Privacy Policy"
               body={[
@@ -764,7 +759,8 @@ function AppRoutes() {
           element={
             <LegalPage
               onHome={() => navigate('/')}
-              onOpenAuth={openAuth}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
               subtitle="The rules for using CreditClear's document workflow, subscription access, and draft-generation features."
               title="Terms Of Use"
               body={[
@@ -792,7 +788,8 @@ function AppRoutes() {
           element={
             <LegalPage
               onHome={() => navigate('/')}
-              onOpenAuth={openAuth}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
               subtitle="Important limitations, review responsibilities, and product-scope disclosures for CreditClear users."
               title="Product Disclaimer"
               body={[
@@ -829,7 +826,9 @@ function AppRoutes() {
               onGoogle={() => void handleSocial()}
               onLogin={() => void handleLogin()}
               onPasswordChange={setLoginPassword}
+              onSignIn={() => navigate('/login')}
               onSignupRoute={() => navigate('/signup')}
+              onStartTrial={() => navigate('/signup')}
               notice={authNotice}
             />
           }
@@ -849,10 +848,32 @@ function AppRoutes() {
               onLoginRoute={() => navigate('/login')}
               onNameChange={setSignupName}
               onPasswordChange={setSignupPassword}
+              onSignIn={() => navigate('/login')}
               onSignup={() => void handleSignup()}
+              onStartTrial={() => navigate('/signup')}
               signupEmail={signupEmail}
               signupName={signupName}
               signupPassword={signupPassword}
+            />
+          }
+        />
+        <Route
+          path="/contact"
+          element={
+            <ContactPage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+            />
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <ResetPasswordPage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
             />
           }
         />
@@ -1008,37 +1029,6 @@ function AppRoutes() {
           <Route path="*" element={<NotFoundPage onHome={() => navigate('/')} />} />
         </Routes>
       </Suspense>
-
-      <AuthModal
-        authError={authError}
-        authNotice={authNotice}
-        authLoading={authLoading}
-        authTab={authTab}
-        isOpen={authModalOpen}
-        loginEmail={loginEmail}
-        loginPassword={loginPassword}
-        onClose={closeAuth}
-        onLogin={() => void handleLogin()}
-        onLoginEmailChange={setLoginEmail}
-        onLoginPasswordChange={setLoginPassword}
-        onOverlayClick={closeAuth}
-        onForgotPassword={() => void handleForgotPassword()}
-        onSignup={() => void handleSignup()}
-        onSignupAcceptedTermsChange={setSignupAcceptedTerms}
-        onSignupEmailChange={setSignupEmail}
-        onSignupNameChange={setSignupName}
-        onSignupPasswordChange={setSignupPassword}
-        onSocial={() => void handleSocial()}
-        onTabChange={(nextTab) => {
-          setAuthError('')
-          setAuthNotice('')
-          setAuthTab(nextTab)
-        }}
-        signupEmail={signupEmail}
-        signupAcceptedTerms={signupAcceptedTerms}
-        signupName={signupName}
-        signupPassword={signupPassword}
-      />
     </>
   )
 }

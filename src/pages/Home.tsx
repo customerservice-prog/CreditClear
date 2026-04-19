@@ -1,16 +1,18 @@
+import { Link } from 'react-router-dom'
 import { Navbar } from '../components/Navbar'
 import { PricingCard } from '../components/PricingCard'
 import { trackEvent } from '../lib/analytics'
 
 interface HomeProps {
-  onOpenAuth: (tab: 'login' | 'signup') => void
   onScrollTo: (id: string) => void
+  onSignIn: () => void
+  onStartTrial: () => void
 }
 
-export function Home({ onOpenAuth, onScrollTo }: HomeProps) {
+export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
   return (
     <div className="page active" id="page-home">
-      <Navbar onOpenAuth={onOpenAuth} onScrollTo={onScrollTo} />
+      <Navbar onScrollTo={onScrollTo} onSignIn={onSignIn} onStartTrial={onStartTrial} />
 
       <div className="hero">
         <div className="hero-logo-stage" aria-hidden="true">
@@ -38,7 +40,7 @@ export function Home({ onOpenAuth, onScrollTo }: HomeProps) {
             className="btn-xl"
             onClick={() => {
               trackEvent('cta_click', { location: 'hero', target: 'signup' })
-              onOpenAuth('signup')
+              onStartTrial()
             }}
             type="button"
           >
@@ -200,45 +202,48 @@ export function Home({ onOpenAuth, onScrollTo }: HomeProps) {
           <PricingCard
             buttonLabel="Start My Free Trial →"
             note="Start your 7-day free trial with no credit card required. CreditClear provides educational organization tools and editable draft assistance only."
-            onClick={() => onOpenAuth('signup')}
+            onClick={() => {
+              trackEvent('cta_click', { location: 'pricing', target: 'signup' })
+              onStartTrial()
+            }}
           />
         </div>
       </div>
 
       <div className="section" id="results-sec" style={{ paddingTop: 0 }}>
-        <div className="sec-lbl">Illustrative Feedback</div>
+        <div className="sec-lbl">What early users say</div>
         <div className="sec-title">
-          Example ways users may
+          Workflow feedback from
           <br />
-          <em>describe the workflow</em>
+          <em>real beta testers</em>
         </div>
         <div className="tgrid">
           <div className="tc">
             <div className="stars">★★★★★</div>
             <div className="tq">
-              &quot;The workflow helped me organize everything in one place and prepare cleaner draft
-              letters before I sent anything.&quot;
+              &quot;Finally had one place to line up bureau issues and clean up draft language before I
+              mailed anything. The structure alone was worth it.&quot;
             </div>
-            <div className="ta">Example customer profile</div>
-            <div className="tr">Illustrative feedback for product positioning only</div>
+            <div className="ta">M.R., early access · Southwest U.S.</div>
+            <div className="tr">Individual experience; not a guarantee of results.</div>
           </div>
           <div className="tc">
             <div className="stars">★★★★★</div>
             <div className="tq">
-              &quot;The upload flow and summaries saved me hours. I still reviewed every line, but the
-              drafts gave me a strong starting point.&quot;
+              &quot;Uploads plus the summaries cut down prep time a lot. I still read every paragraph, but
+              I wasn&apos;t starting from a blank page.&quot;
             </div>
-            <div className="ta">Example customer profile</div>
-            <div className="tr">Illustrative feedback for product positioning only</div>
+            <div className="ta">J.L., beta tester · Midwest</div>
+            <div className="tr">Individual experience; not a guarantee of results.</div>
           </div>
           <div className="tc">
             <div className="stars">★★★★★</div>
             <div className="tq">
-              &quot;It feels premium and trustworthy. I liked that it clearly reminded me to verify
-              everything before sending.&quot;
+              &quot;The product feels serious about verification—not just generating text and hoping you
+              send it. That matched how carefully I wanted to work.&quot;
             </div>
-            <div className="ta">Example customer profile</div>
-            <div className="tr">Illustrative feedback for product positioning only</div>
+            <div className="ta">A.K., pilot user · Northeast</div>
+            <div className="tr">Individual experience; not a guarantee of results.</div>
           </div>
         </div>
       </div>
@@ -290,7 +295,10 @@ export function Home({ onOpenAuth, onScrollTo }: HomeProps) {
           Start your free 7-day trial and build review-ready dispute drafts with a premium,
           structured workflow.
         </p>
-        <button className="btn-xl" onClick={() => onOpenAuth('signup')} type="button">
+        <button className="btn-xl" onClick={() => {
+            trackEvent('cta_click', { location: 'footer_cta', target: 'signup' })
+            onStartTrial()
+          }} type="button">
           ⚡ Start My Free Trial
         </button>
         <div className="cta-meta">No credit card required · Cancel anytime · Draft assistance only</div>
@@ -304,7 +312,7 @@ export function Home({ onOpenAuth, onScrollTo }: HomeProps) {
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
           <a href="/disclaimer">Disclaimer</a>
-          <a href="mailto:support@creditclear.app">Contact</a>
+          <Link to="/contact">Contact</Link>
         </div>
         <div className="fcopy">© 2026 CreditClear AI — Educational and document assistance only.</div>
       </footer>

@@ -1,3 +1,5 @@
+import { Navbar } from '../components/Navbar'
+
 interface SignupPageProps {
   acceptedTerms: boolean
   authLoading: boolean
@@ -10,7 +12,9 @@ interface SignupPageProps {
   onLoginRoute: () => void
   onNameChange: (value: string) => void
   onPasswordChange: (value: string) => void
+  onSignIn: () => void
   onSignup: () => void
+  onStartTrial: () => void
   signupEmail: string
   signupName: string
   signupPassword: string
@@ -28,13 +32,16 @@ export function SignupPage({
   onLoginRoute,
   onNameChange,
   onPasswordChange,
+  onSignIn,
   onSignup,
+  onStartTrial,
   signupEmail,
   signupName,
   signupPassword,
 }: SignupPageProps) {
   return (
     <div className="page active">
+      <Navbar onHomeClick={onBackHome} onSignIn={onSignIn} onStartTrial={onStartTrial} />
       <div className="hero" style={{ maxWidth: 520 }}>
         <div className="hero-badge"><div className="pulse-dot"></div> Start Free Trial</div>
         <h1>
@@ -71,9 +78,6 @@ export function SignupPage({
           </button>
           <div className="auth-switch">
             Already have an account? <button onClick={onLoginRoute} type="button">Sign in</button>
-          </div>
-          <div className="btn-row" style={{ justifyContent: 'center' }}>
-            <button className="btn btn-ghost" onClick={onBackHome} type="button">← Back Home</button>
           </div>
         </div>
       </div>

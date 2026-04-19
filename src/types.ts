@@ -1,4 +1,3 @@
-export type AuthTab = 'login' | 'signup'
 export type AppTab = 'generator' | 'disputes'
 export type AgencyId = 'equifax' | 'experian' | 'transunion'
 export type IssueId =

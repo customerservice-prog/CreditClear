@@ -7,6 +7,8 @@ interface NavbarProps {
   onAppTabChange?: (tab: AppTab) => void
   onHomeClick?: () => void
   onOpenAuth?: (tab: 'login' | 'signup') => void
+  onSignIn?: () => void
+  onStartTrial?: () => void
   onSignOut?: () => void
   onScrollTo?: (id: string) => void
   statusLabel?: string
@@ -19,6 +21,8 @@ export function Navbar({
   onAppTabChange,
   onHomeClick,
   onOpenAuth,
+  onSignIn,
+  onStartTrial,
   onSignOut,
   onScrollTo,
   statusLabel,
@@ -98,10 +102,18 @@ export function Navbar({
             Menu
           </button>
         ) : null}
-        <button className="btn-nav-ghost" onClick={() => onOpenAuth?.('login')} type="button">
+        <button
+          className="btn-nav-ghost"
+          onClick={() => (onSignIn ? onSignIn() : onOpenAuth?.('login'))}
+          type="button"
+        >
           Sign In
         </button>
-        <button className="btn-nav-gold" onClick={() => onOpenAuth?.('signup')} type="button">
+        <button
+          className="btn-nav-gold"
+          onClick={() => (onStartTrial ? onStartTrial() : onOpenAuth?.('signup'))}
+          type="button"
+        >
           Start Free Trial
         </button>
       </div>
