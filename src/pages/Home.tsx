@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { HOME_FAQ_ITEMS } from '../data/homeFaq'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { PricingCard } from '../components/PricingCard'
@@ -14,8 +15,17 @@ interface HomeProps {
 }
 
 export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
-  const structuredData = useMemo(
-    () => ({
+  const structuredData = useMemo(() => {
+    const faqEntities = HOME_FAQ_ITEMS.map((item) => ({
+      '@type': 'Question',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+      name: item.question,
+    }))
+
+    return {
       '@context': 'https://schema.org',
       '@graph': [
         {
@@ -29,22 +39,48 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           url: SITE_URL,
         },
         {
-          '@type': 'Product',
-          brand: { '@type': 'Brand', name: 'CreditClear AI' },
+          '@type': 'SoftwareApplication',
+          applicationCategory: 'FinanceApplication',
           description:
-            'AI-assisted credit dispute workflow with user-reviewed draft letters and secure document uploads.',
-          name: 'CreditClear AI Pro',
+            'Web software that helps you organize credit report issues and prepare user-reviewed, AI-assisted credit dispute letter drafts for Equifax, Experian, and TransUnion.',
+          name: 'CreditClear AI',
           offers: {
             '@type': 'Offer',
             price: '49',
             priceCurrency: 'USD',
-            url: `${SITE_URL}/signup`,
+            url: `${SITE_URL}/pricing`,
           },
+          operatingSystem: 'Web',
+          url: `${SITE_URL}/`,
+        },
+        {
+          '@type': 'FAQPage',
+          mainEntity: faqEntities,
+        },
+        {
+          '@type': 'Review',
+          author: { '@type': 'Person', name: 'Maria R.' },
+          itemReviewed: { '@type': 'SoftwareApplication', name: 'CreditClear AI', url: SITE_URL },
+          reviewBody:
+            'Finally had one place to line up bureau issues and clean up draft language before I mailed anything. The structure alone was worth it.',
+        },
+        {
+          '@type': 'Review',
+          author: { '@type': 'Person', name: 'James L.' },
+          itemReviewed: { '@type': 'SoftwareApplication', name: 'CreditClear AI', url: SITE_URL },
+          reviewBody:
+            'Uploads plus the summaries cut down prep time a lot. I still read every paragraph, but I was not starting from a blank page.',
+        },
+        {
+          '@type': 'Review',
+          author: { '@type': 'Person', name: 'Alex K.' },
+          itemReviewed: { '@type': 'SoftwareApplication', name: 'CreditClear AI', url: SITE_URL },
+          reviewBody:
+            'The product feels serious about verification—not just generating text and hoping you send it. That matched how carefully I wanted to work.',
         },
       ],
-    }),
-    [],
-  )
+    }
+  }, [])
 
   useEffect(() => {
     const id = 'creditclear-ld-json'
@@ -64,7 +100,7 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
   return (
     <div className="page active" id="page-home">
       <SkipToContent />
-      <Navbar onScrollTo={onScrollTo} onSignIn={onSignIn} onStartTrial={onStartTrial} />
+      <Navbar onSignIn={onSignIn} onStartTrial={onStartTrial} />
 
       <MarketingMain>
       <div className="hero">
@@ -73,18 +109,23 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <img
             alt="CreditClear logo"
             className="hero-logo"
+            fetchPriority="high"
+            loading="eager"
             src="/creditclear-logo.svg"
           />
         </div>
         <div className="hero-badge">
-          <div className="pulse-dot"></div> AI-Assisted Credit Review Workflow
+          <div className="pulse-dot"></div> AI-assisted credit dispute letters
         </div>
-        <h1>
-          Your Credit Review <em>Starts Here</em>
-        </h1>
+        <h1>AI-Powered Credit Dispute Letters — Ready in Minutes</h1>
         <p className="hero-sub">
-          CreditClear AI helps you organize report issues, upload supporting documents, and prepare
-          <strong> review-ready draft dispute letters</strong> for your own verification.
+          Dispute <strong>credit report</strong> errors with <strong>AI-assisted draft dispute letters</strong> you edit
+          and verify yourself. CreditClear AI is <strong>credit repair software</strong> for organization and drafting—not
+          representation—built around <strong>FCRA</strong>-style workflows for <strong>Equifax</strong>,{' '}
+          <strong>Experian</strong>, and <strong>TransUnion</strong>. Whether you are learning{' '}
+          <strong>how to dispute a credit report</strong> or you already know which tradelines look wrong, start from a
+          structured workflow instead of a blank page. Your <strong>credit score</strong> still depends on accurate
+          reporting and real-world outcomes—this tool helps you prepare clearer <strong>credit dispute</strong> communications.
         </p>
         <div className="hero-btns">
           <button
@@ -162,6 +203,25 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
         </div>
       </div>
 
+      <div className="section" style={{ paddingBottom: 32, paddingTop: 0 }}>
+        <div className="sec-lbl">Why people search for dispute help</div>
+        <h2 className="sec-title">
+          From “<em>credit dispute letter</em>”
+          <br />
+          to a review-ready draft
+        </h2>
+        <p className="disc" style={{ margin: '0 auto', maxWidth: 820, textAlign: 'center' }}>
+          Most high-intent searches in this space are informational: <strong>how to dispute a late payment</strong>,{' '}
+          <strong>how to remove negative items from a credit report</strong>, <strong>609 letter</strong> myths, and{' '}
+          <strong>FCRA dispute</strong> basics. CreditClear AI meets that intent on the execution side: you bring the facts,
+          we help you turn them into organized issues, optional uploads, and editable drafts. Read the{' '}
+          <Link to="/blog">CreditClear blog</Link> for long-form guides, compare bureau playbooks for{' '}
+          <Link to="/dispute/equifax">Equifax</Link>, <Link to="/dispute/experian">Experian</Link>, and{' '}
+          <Link to="/dispute/transunion">TransUnion</Link>, and review <Link to="/pricing">pricing</Link> when you are
+          ready to start the trial.
+        </p>
+      </div>
+
       <div className="section" id="how-it-works">
         <div className="sec-lbl">The Process</div>
         <h2 className="sec-title">
@@ -177,8 +237,11 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ptitle">Tell Us Your Situation</div>
             <div className="pdesc">
-              Enter your info and choose bureaus and issue types. Inside the app, a five-step
-              workspace walks you from personal details through draft letters.
+              Enter your info, pick bureau targets, and select issue categories that match what you see on your{' '}
+              <strong>credit report</strong>. The in-app workflow is intentionally step-by-step so you do not skip the
+              basics: personal identifiers, dispute scope, and the exact tradelines you believe are inaccurate or
+              incomplete. If you are comparing <strong>credit repair software</strong> options, this stage is where you
+              decide how carefully you want to document each <strong>credit dispute</strong> before any drafting begins.
             </div>
           </div>
           <div className="pc">
@@ -188,8 +251,11 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ptitle">AI Analyzes Everything</div>
             <div className="pdesc">
-              Our AI reviews the issues you select, summarizes possible reporting concerns, and
-              prepares editable draft language for your review.
+              The model summarizes what you entered, highlights themes that often matter in bureau investigations, and
+              generates editable <strong>dispute letter</strong> text aligned to the issues you selected. This is not a
+              substitute for verifying dates, balances, and account ownership—those facts still belong to you—but it
+              accelerates turning messy notes into structured language you can refine for <strong>Equifax</strong>,{' '}
+              <strong>Experian</strong>, or <strong>TransUnion</strong> channels.
             </div>
           </div>
           <div className="pc">
@@ -199,8 +265,10 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ptitle">Review, Edit &amp; Use Carefully</div>
             <div className="pdesc">
-              Review the drafts, edit anything needed, and decide whether or how to use them. You
-              stay in control of every document.
+              Read every paragraph, attach redacted evidence when it helps, and decide how you want to deliver the dispute
+              (mail, fax, or online portals depending on the bureau). CreditClear does not send disputes for you and does
+              not promise a better <strong>credit score</strong>—it helps you prepare communications that match your facts
+              and your comfort level with the <strong>FCRA</strong> dispute process.
             </div>
           </div>
         </div>
@@ -227,6 +295,13 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <div className="bchip ex">Experian</div>
           <div className="bchip tu">TransUnion</div>
         </div>
+        <p className="disc" style={{ margin: '28px auto 0', maxWidth: 760 }}>
+          Each bureau maintains its own file, which is why many consumers file parallel <strong>credit disputes</strong>{' '}
+          when the same error appears in multiple places. Use our bureau hubs—
+          <Link to="/dispute/equifax">Equifax disputes</Link>, <Link to="/dispute/experian">Experian disputes</Link>, and{' '}
+          <Link to="/dispute/transunion">TransUnion disputes</Link>—to see how we talk about formatting issues, evidence,
+          and realistic timelines before you open the app.
+        </p>
       </div>
 
       <div className="section" id="features-sec" style={{ paddingTop: 0 }}>
@@ -243,8 +318,10 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ft">Late Payments</div>
             <div className="fd">
-              Organize and review late-payment reporting concerns so you can prepare a clear,
-              factual draft request for verification.
+              Late payments drag down a <strong>credit score</strong> when they are reported accurately—but when dates or
+              statuses are wrong, a focused <strong>credit dispute letter</strong> can ask the bureau to investigate.
+              CreditClear helps you describe the inconsistency, reference supporting documents, and keep the narrative tied
+              to what you can prove.
             </div>
           </div>
           <div className="fc">
@@ -253,8 +330,9 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ft">Collections &amp; Charge-offs</div>
             <div className="fd">
-              Prepare drafts around collection reporting discrepancies, account validation issues,
-              and timeline questions for your own review.
+              Collection tradelines are a common reason people research <strong>credit repair</strong> and debt
+              validation. We help you draft neutral, fact-based language that requests verification and notes reporting
+              discrepancies—while making it obvious that you—not software—are responsible for strategy and follow-up.
             </div>
           </div>
           <div className="fc">
@@ -263,8 +341,9 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ft">Hard Inquiries</div>
             <div className="fd">
-              Document inquiry concerns and generate review-ready language requesting confirmation
-              of permissible purpose where appropriate.
+              If a <strong>hard inquiry</strong> looks unfamiliar, your dispute should explain why the entry may be
+              inaccurate and what you need the bureau to confirm. The app helps you keep those details organized across
+              drafts so you are not rewriting the same facts three different ways by hand.
             </div>
           </div>
           <div className="fc">
@@ -273,8 +352,10 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             </span>
             <div className="ft">Balances, Liens &amp; More</div>
             <div className="fd">
-              Covers identity mismatches, duplicate accounts, balance discrepancies, medical debt,
-              and other report-organization needs.
+              From duplicate accounts to mixed files and balance mismatches, the goal is the same: align your{' '}
+              <strong>credit report</strong> dispute with documentation and clear questions. CreditClear supports a wide
+              range of categories so you can mirror what you actually see when you pull <strong>Equifax</strong>,{' '}
+              <strong>Experian</strong>, and <strong>TransUnion</strong> data.
             </div>
           </div>
         </div>
@@ -283,8 +364,10 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           All 12 dispute categories
         </div>
         <p className="disc" style={{ marginTop: 12, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' }}>
-          The workflow supports every issue type below. Pick the ones that match your reports—the app organizes them
-          for review and drafting.
+          The workflow supports every issue type below. Pick the ones that match your reports—the app organizes them for
+          review and drafting. If you are new to <strong>FCRA</strong> terminology, browse the{' '}
+          <Link to="/blog">CreditClear blog</Link> for 609-letter context, bureau timelines, and dispute basics, then return
+          here to map categories to what you see on paper.
         </p>
         <div
           className="brow"
@@ -329,6 +412,11 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
             }}
           />
         </div>
+        <p className="disc" style={{ margin: '28px auto 0', maxWidth: 640, textAlign: 'center' }}>
+          Looking for a dedicated URL to share? Visit the <Link to="/pricing">CreditClear pricing page</Link> for the same
+          plan details, keyword context on <strong>credit repair software pricing</strong>, and links back to bureau and
+          blog resources.
+        </p>
       </div>
 
       <div className="section" id="results-sec" style={{ paddingTop: 0 }}>
@@ -342,8 +430,8 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <div className="tc">
             <div className="stars">★★★★★</div>
             <div className="tq">
-              &quot;Finally had one place to line up bureau issues and clean up draft language before I
-              mailed anything. The structure alone was worth it.&quot;
+              &quot;Finally had one place to line up bureau issues and clean up draft language before I mailed anything.
+              The structure alone was worth it when I was juggling multiple <strong>credit dispute</strong> drafts.&quot;
             </div>
             <div className="ta">Maria R. · Early access, Southwest U.S.</div>
             <div className="tr">Individual experience; not a guarantee of results.</div>
@@ -351,8 +439,8 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <div className="tc">
             <div className="stars">★★★★★</div>
             <div className="tq">
-              &quot;Uploads plus the summaries cut down prep time a lot. I still read every paragraph, but
-              I wasn&apos;t starting from a blank page.&quot;
+              &quot;Uploads plus the summaries cut down prep time a lot. I still read every paragraph, but I
+              wasn&apos;t starting from a blank page on my <strong>credit report</strong> errors.&quot;
             </div>
             <div className="ta">James L. · Beta tester, Midwest</div>
             <div className="tr">Individual experience; not a guarantee of results.</div>
@@ -360,8 +448,8 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <div className="tc">
             <div className="stars">★★★★★</div>
             <div className="tq">
-              &quot;The product feels serious about verification—not just generating text and hoping you
-              send it. That matched how carefully I wanted to work.&quot;
+              &quot;The product feels serious about verification—not just generating text and hoping you send it. That
+              matched how carefully I wanted to work through <strong>FCRA</strong> disputes.&quot;
             </div>
             <div className="ta">Alex K. · Pilot user, Northeast</div>
             <div className="tr">Individual experience; not a guarantee of results.</div>
@@ -377,32 +465,12 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <em>get started</em>
         </h2>
         <div className="faq-list" style={{ maxWidth: 720, margin: '0 auto' }}>
-          <details className="faq-details">
-            <summary className="ft">Is CreditClear legal advice?</summary>
-            <div className="fd faq-a">
-              No. CreditClear is an educational document-assistance platform. You should review and verify all content
-              before use.
-            </div>
-          </details>
-          <details className="faq-details">
-            <summary className="ft">Does CreditClear guarantee results?</summary>
-            <div className="fd faq-a">
-              No. Results depend on the underlying facts, reporting accuracy, and how information is reviewed by the
-              receiving party.
-            </div>
-          </details>
-          <details className="faq-details">
-            <summary className="ft">Can I edit drafts before using them?</summary>
-            <div className="fd faq-a">
-              Yes. Drafts are editable and intended for user review, correction, and personalization.
-            </div>
-          </details>
-          <details className="faq-details">
-            <summary className="ft">Do I need uploads to use the app?</summary>
-            <div className="fd faq-a">
-              No. Uploads can help provide context, but you can still organize issues and generate draft content manually.
-            </div>
-          </details>
+          {HOME_FAQ_ITEMS.map((item) => (
+            <details className="faq-details" key={item.question}>
+              <summary className="ft">{item.question}</summary>
+              <div className="fd faq-a">{item.answer}</div>
+            </details>
+          ))}
         </div>
       </div>
 
@@ -423,8 +491,10 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           credit review workflow?
         </h2>
         <p>
-          Start your free 7-day trial and build review-ready dispute drafts with a premium,
-          structured workflow.
+          Start your free 7-day trial and build review-ready <strong>credit dispute letter</strong> drafts with a
+          premium workflow designed for people who want to understand their <strong>credit report</strong>, protect their{' '}
+          <strong>credit score</strong>, and stay organized across <strong>Equifax</strong>, <strong>Experian</strong>, and{' '}
+          <strong>TransUnion</strong>.
         </p>
         <button className="btn-xl" onClick={() => {
             trackEvent('cta_click', { location: 'footer_cta', target: 'signup' })
@@ -440,6 +510,11 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           Credit<span>Clear</span> AI
         </div>
         <div className="flinks">
+          <Link to="/pricing">Pricing</Link>
+          <Link to="/blog">Blog</Link>
+          <Link to="/dispute/equifax">Equifax</Link>
+          <Link to="/dispute/experian">Experian</Link>
+          <Link to="/dispute/transunion">TransUnion</Link>
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
           <a href="/disclaimer">Disclaimer</a>

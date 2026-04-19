@@ -3,6 +3,9 @@ import { stat, readFile } from 'node:fs/promises'
 import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BLOG_POSTS } from './server/blog-slugs.mjs'
+import { getCrawlerHtml } from './server/crawler-html.mjs'
+import { APEX_HOST, isSearchOrPreviewBot, requestHostname, SITE_ORIGIN } from './server/seo-config.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.join(__dirname, 'dist')
@@ -41,6 +44,72 @@ const mimeTypes = {
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
+
+    const hostname = requestHostname(request)
+    if (hostname === APEX_HOST) {
+      const dest = `${SITE_ORIGIN}${url.pathname}${url.search}`
+      response.statusCode = 301
+      response.setHeader('Location', dest)
+      response.end()
+      return
+    }
+
+    if (url.pathname === '/robots.txt') {
+      const body = `User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /login
+Disallow: /signup
+Disallow: /reset-password
+
+Sitemap: ${SITE_ORIGIN}/sitemap.xml
+`
+      response.statusCode = 200
+      response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      response.end(body)
+      return
+    }
+
+    if (url.pathname === '/sitemap.xml') {
+      const paths = [
+        '/',
+        '/pricing',
+        '/contact',
+        '/privacy',
+        '/terms',
+        '/disclaimer',
+        '/blog',
+        ...BLOG_POSTS.map((post) => `/blog/${post.slug}`),
+        '/dispute/equifax',
+        '/dispute/experian',
+        '/dispute/transunion',
+      ]
+      const urls = paths
+        .map((pathname) => {
+          const loc = pathname === '/' ? SITE_ORIGIN + '/' : `${SITE_ORIGIN}${pathname}`
+          const priority = pathname === '/' ? '1.0' : '0.8'
+          return `  <url><loc>${loc}</loc><changefreq>weekly</changefreq><priority>${priority}</priority></url>`
+        })
+        .join('\n')
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>`
+      response.statusCode = 200
+      response.setHeader('Content-Type', 'application/xml; charset=utf-8')
+      response.end(xml)
+      return
+    }
+
+    if (request.method === 'GET' && isSearchOrPreviewBot(request.headers['user-agent'])) {
+      const crawlerHtml = getCrawlerHtml(url.pathname)
+      if (crawlerHtml) {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html; charset=utf-8')
+        response.end(crawlerHtml)
+        return
+      }
+    }
 
     if (url.pathname === '/env.js') {
       const publicEnv = {}

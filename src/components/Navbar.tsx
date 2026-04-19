@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { AppTab } from '../types'
 import { CTA_TRIAL_LABEL } from '../lib/site'
 
@@ -11,7 +12,6 @@ interface NavbarProps {
   onSignIn?: () => void
   onStartTrial?: () => void
   onSignOut?: () => void
-  onScrollTo?: (id: string) => void
   statusLabel?: string
   userDisplayName?: string
 }
@@ -25,7 +25,6 @@ export function Navbar({
   onSignIn,
   onStartTrial,
   onSignOut,
-  onScrollTo,
   statusLabel,
   userDisplayName,
 }: NavbarProps) {
@@ -84,26 +83,23 @@ export function Navbar({
           Credit<span>Clear</span> AI
         </div>
       </button>
-      {onScrollTo ? (
-        <div className="nav-links">
-          <a href="#how-it-works">How It Works</a>
-          <a href="#features-sec">What We Fix</a>
-          <a href="#pricing-sec">Pricing</a>
-          <a href="#results-sec">Results</a>
-        </div>
-      ) : null}
+      <div className="nav-links">
+        <Link to="/#how-it-works">How It Works</Link>
+        <Link to="/#features-sec">What We Fix</Link>
+        <Link to="/pricing">Pricing</Link>
+        <Link to="/blog">Blog</Link>
+        <Link to="/#results-sec">Results</Link>
+      </div>
       <div className="nav-right">
-        {onScrollTo ? (
-          <button
-            aria-expanded={menuOpen}
-            aria-haspopup="true"
-            className="btn-nav-ghost nav-menu-btn"
-            onClick={() => setMenuOpen((value) => !value)}
-            type="button"
-          >
-            Menu
-          </button>
-        ) : null}
+        <button
+          aria-expanded={menuOpen}
+          aria-haspopup="true"
+          className="btn-nav-ghost nav-menu-btn"
+          onClick={() => setMenuOpen((value) => !value)}
+          type="button"
+        >
+          Menu
+        </button>
         <button
           className="btn-nav-ghost"
           onClick={() => (onSignIn ? onSignIn() : onOpenAuth?.('login'))}
@@ -119,20 +115,23 @@ export function Navbar({
           {CTA_TRIAL_LABEL}
         </button>
       </div>
-      {onScrollTo && menuOpen ? (
+      {menuOpen ? (
         <div className="nav-mobile-menu" id="nav-mobile-panel">
-          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>
+          <Link to="/#how-it-works" onClick={() => setMenuOpen(false)}>
             How It Works
-          </a>
-          <a href="#features-sec" onClick={() => setMenuOpen(false)}>
+          </Link>
+          <Link to="/#features-sec" onClick={() => setMenuOpen(false)}>
             What We Fix
-          </a>
-          <a href="#pricing-sec" onClick={() => setMenuOpen(false)}>
+          </Link>
+          <Link to="/pricing" onClick={() => setMenuOpen(false)}>
             Pricing
-          </a>
-          <a href="#results-sec" onClick={() => setMenuOpen(false)}>
+          </Link>
+          <Link to="/blog" onClick={() => setMenuOpen(false)}>
+            Blog
+          </Link>
+          <Link to="/#results-sec" onClick={() => setMenuOpen(false)}>
             Results
-          </a>
+          </Link>
         </div>
       ) : null}
     </nav>

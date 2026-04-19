@@ -15,8 +15,15 @@ import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
 import type { DisputeDetail, Letter } from './types'
+import { getBlogPostBySlug } from './data/blogPosts'
+import { SITE_URL } from './lib/site'
 
 const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
+const BlogIndexPage = lazy(() => import('./pages/BlogIndexPage').then((module) => ({ default: module.BlogIndexPage })))
+const BlogPostPage = lazy(() => import('./pages/BlogPostPage').then((module) => ({ default: module.BlogPostPage })))
+const BureauDisputePage = lazy(() =>
+  import('./pages/BureauDisputePage').then((module) => ({ default: module.BureauDisputePage })),
+)
 const ContactPage = lazy(() => import('./pages/ContactPage').then((module) => ({ default: module.ContactPage })))
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
@@ -29,6 +36,7 @@ const LegalPage = lazy(() => import('./pages/LegalPage').then((module) => ({ def
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })))
 const NewDisputePage = lazy(() => import('./pages/App').then((module) => ({ default: module.AppPage })))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })))
+const PricingPage = lazy(() => import('./pages/PricingPage').then((module) => ({ default: module.PricingPage })))
 const ResetPasswordPage = lazy(() =>
   import('./pages/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })),
 )
@@ -37,12 +45,18 @@ const SignupPage = lazy(() => import('./pages/SignupPage').then((module) => ({ d
 
 const PAGE_META: Record<string, { description: string; title: string }> = {
   '/': {
-    description: 'Securely organize credit report issues, upload supporting documents, and review AI-assisted dispute drafts.',
-    title: 'CreditClear AI | Review-Ready Credit Dispute Workflow',
+    description:
+      'Generate AI-assisted credit dispute letters for Equifax, Experian, and TransUnion. Upload your credit report, identify errors, and get review-ready draft letters in minutes. Free 7-day trial.',
+    title: 'AI Credit Dispute Letter Generator | CreditClear AI',
   },
   '/billing': {
     description: 'Review your CreditClear trial status, subscription access, renewal timing, and billing options.',
     title: 'Billing | CreditClear AI',
+  },
+  '/blog': {
+    description:
+      'Educational guides on credit dispute letters, FCRA basics, bureau workflows, and credit score myths—not legal advice.',
+    title: 'Credit Dispute & Credit Report Guides | CreditClear AI',
   },
   '/contact': {
     description: 'Reach CreditClear support for account, billing, and product questions.',
@@ -59,6 +73,11 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
   '/login': {
     description: 'Sign in to access your saved disputes, billing details, and draft-generation workflow.',
     title: 'Log In | CreditClear AI',
+  },
+  '/pricing': {
+    description:
+      'CreditClear AI pricing for AI-assisted credit dispute letters: start with a free 7-day trial, then $49/month. Organize Equifax, Experian, and TransUnion disputes in one workflow.',
+    title: 'Credit Repair Software Pricing | AI Credit Dispute Tool | CreditClear AI',
   },
   '/reset-password': {
     description: 'Set a new CreditClear password after opening the secure link from your email.',
@@ -117,26 +136,80 @@ function AppRoutes() {
   const { uploadFiles } = useUploads(authUser?.id, session?.access_token)
 
   useEffect(() => {
-    const meta = location.pathname.startsWith('/disputes/')
-      ? {
-          description: 'Review a saved CreditClear dispute, edit draft letters, and download documents.',
-          title: 'Saved Dispute | CreditClear AI',
+    let meta: { description: string; title: string }
+
+    if (location.pathname.startsWith('/disputes/') && location.pathname !== '/disputes/new') {
+      meta = {
+        description: 'Review a saved CreditClear dispute, edit draft letters, and download documents.',
+        title: 'Saved Dispute | CreditClear AI',
+      }
+    } else if (location.pathname === '/disputes/new') {
+      meta = {
+        description: 'Complete the guided credit dispute workflow, upload files, and generate editable drafts.',
+        title: 'New Dispute | CreditClear AI',
+      }
+    } else if (location.pathname.startsWith('/blog/')) {
+      const slug = location.pathname.slice('/blog/'.length)
+      const post = slug && !slug.includes('/') ? getBlogPostBySlug(slug) : undefined
+      meta = post
+        ? { title: `${post.title} | CreditClear AI`, description: post.description }
+        : {
+            title: 'Blog | CreditClear AI',
+            description:
+              'Educational guides on credit disputes, credit reports, and FCRA-oriented workflows from CreditClear AI.',
+          }
+    } else {
+      const bureauMatch = location.pathname.match(/^\/dispute\/(equifax|experian|transunion)$/i)
+      if (bureauMatch) {
+        const key = bureauMatch[1].toLowerCase() as 'equifax' | 'experian' | 'transunion'
+        const label = { equifax: 'Equifax', experian: 'Experian', transunion: 'TransUnion' }[key]
+        meta = {
+          description: `Learn how to dispute ${label} credit report errors, organize FCRA-oriented dispute letters, and review AI-assisted drafts before you file.`,
+          title: `How to Dispute ${label} Credit Report Errors | CreditClear AI`,
         }
-      : location.pathname === '/disputes/new'
-        ? {
-            description: 'Complete the guided credit dispute workflow, upload files, and generate editable drafts.',
-            title: 'New Dispute | CreditClear AI',
-          }
-        : PAGE_META[location.pathname] || {
-            description: 'CreditClear AI helps organize report issues and prepare user-reviewed dispute drafts.',
-            title: 'CreditClear AI',
-          }
+      } else {
+        meta = PAGE_META[location.pathname] || {
+          description: 'CreditClear AI helps organize report issues and prepare user-reviewed dispute drafts.',
+          title: 'CreditClear AI',
+        }
+      }
+    }
 
     document.title = meta.title
-    const descriptionTag = document.querySelector('meta[name="description"]')
-    if (descriptionTag) {
-      descriptionTag.setAttribute('content', meta.description)
+    upsertMetaName('description', meta.description)
+
+    const canonicalHref =
+      location.pathname === '/' ? `${SITE_URL}/` : `${SITE_URL}${location.pathname.split('?')[0]}`
+    upsertLinkRel('canonical', canonicalHref)
+
+    const robotsContent = shouldNoIndexPath(location.pathname)
+      ? 'noindex, nofollow'
+      : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1'
+    upsertMetaName('robots', robotsContent)
+
+    upsertMetaProperty('og:url', canonicalHref)
+    upsertMetaProperty('og:title', meta.title)
+    upsertMetaProperty('og:description', meta.description)
+
+    upsertMetaName('twitter:title', meta.title)
+    upsertMetaName('twitter:description', meta.description)
+
+    const gsv = import.meta.env.VITE_GOOGLE_SITE_VERIFICATION
+    if (gsv) {
+      upsertMetaName('google-site-verification', gsv)
+    } else {
+      document.querySelector('meta[name="google-site-verification"]')?.remove()
     }
+
+    const tw = import.meta.env.VITE_TWITTER_SITE?.replace(/^@/, '')
+    if (tw) {
+      upsertMetaName('twitter:site', `@${tw}`)
+      upsertMetaName('twitter:creator', `@${tw}`)
+    } else {
+      document.querySelector('meta[name="twitter:site"]')?.remove()
+      document.querySelector('meta[name="twitter:creator"]')?.remove()
+    }
+
     trackPageView(location.pathname + location.search, meta.title)
   }, [location.pathname, location.search])
 
@@ -887,6 +960,46 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/pricing"
+          element={
+            <PricingPage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+            />
+          }
+        />
+        <Route
+          path="/blog"
+          element={
+            <BlogIndexPage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+            />
+          }
+        />
+        <Route
+          path="/blog/:slug"
+          element={
+            <BlogPostPage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+            />
+          }
+        />
+        <Route
+          path="/dispute/:bureauId"
+          element={
+            <BureauDisputePage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+            />
+          }
+        />
+        <Route
           path="/reset-password"
           element={
             <ResetPasswordPage
@@ -1075,6 +1188,58 @@ function Background() {
 
 function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+}
+
+function isPublicIndexablePath(pathname: string): boolean {
+  const exact = new Set(['/', '/pricing', '/blog', '/contact', '/privacy', '/terms', '/disclaimer'])
+  if (exact.has(pathname)) {
+    return true
+  }
+
+  if (pathname.startsWith('/blog/')) {
+    const slug = pathname.slice('/blog/'.length)
+    if (!slug || slug.includes('/')) {
+      return false
+    }
+    return Boolean(getBlogPostBySlug(slug))
+  }
+
+  return /^\/dispute\/(equifax|experian|transunion)$/i.test(pathname)
+}
+
+function shouldNoIndexPath(pathname: string): boolean {
+  return !isPublicIndexablePath(pathname)
+}
+
+function upsertLinkRel(rel: string, href: string) {
+  const selector = `link[rel="${rel}"]`
+  let el = document.querySelector(selector) as HTMLLinkElement | null
+  if (!el) {
+    el = document.createElement('link')
+    el.setAttribute('rel', rel)
+    document.head.appendChild(el)
+  }
+  el.href = href
+}
+
+function upsertMetaName(name: string, content: string) {
+  let el = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null
+  if (!el) {
+    el = document.createElement('meta')
+    el.setAttribute('name', name)
+    document.head.appendChild(el)
+  }
+  el.setAttribute('content', content)
+}
+
+function upsertMetaProperty(property: string, content: string) {
+  let el = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement | null
+  if (!el) {
+    el = document.createElement('meta')
+    el.setAttribute('property', property)
+    document.head.appendChild(el)
+  }
+  el.setAttribute('content', content)
 }
 
 function wait(ms: number) {
