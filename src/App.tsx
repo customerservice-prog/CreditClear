@@ -546,6 +546,8 @@ function AppRoutes() {
       streamMessage: 'Uploading your report and preparing Claude...',
     }))
 
+    let slowStreamHint: number | undefined
+
     try {
       trackEvent('generation_started', {
         agencies: appState.agencies.length,
@@ -553,6 +555,18 @@ function AppRoutes() {
         issues: appState.issues.length,
       })
       const collectedLetters: Letter[] = []
+
+      slowStreamHint = window.setTimeout(() => {
+        setAppState((previous) =>
+          previous.analyzing && previous.analysisStep < 2
+            ? {
+                ...previous,
+                streamMessage:
+                  'Still waiting for the drafting service… This can take several minutes for many letters — keep this tab open.',
+              }
+            : previous,
+        )
+      }, 6000)
 
       await streamGeneratedLetters({
         accessToken: session.access_token,
@@ -607,6 +621,10 @@ function AppRoutes() {
         streamMessage: '',
       }))
       setBillingMessage(error instanceof Error ? error.message : 'Unable to generate letters.')
+    } finally {
+      if (slowStreamHint) {
+        window.clearTimeout(slowStreamHint)
+      }
     }
   }
 

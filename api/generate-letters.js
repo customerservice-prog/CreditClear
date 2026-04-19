@@ -128,9 +128,11 @@ export default async function handler(request, response) {
       assertAiKeysConfigured()
     }
 
-    response.setHeader('Content-Type', 'text/event-stream')
-    response.setHeader('Cache-Control', 'no-cache, no-transform')
+    response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    response.setHeader('Cache-Control', 'no-cache, no-transform, no-store')
     response.setHeader('Connection', 'keep-alive')
+    response.setHeader('X-Accel-Buffering', 'no')
+    response.setHeader('X-Buffered', 'no')
 
     sendEvent(response, { type: 'status', message: 'Scanning uploaded materials...' })
 
@@ -150,11 +152,31 @@ export default async function handler(request, response) {
       message: useStub ? 'Building demonstration letters (stub mode)...' : 'Drafting dispute letters...',
     })
 
-    const text = useStub
-      ? buildStubAiResponseText(normalizedRequest)
-      : provider === 'anthropic'
-        ? await generateWithAnthropic(prompt, uploads, authUser.id)
-        : await generateWithOpenAi(prompt, uploads, authUser.id)
+    let text
+    if (useStub) {
+      text = buildStubAiResponseText(normalizedRequest)
+    } else {
+      const heartbeat = setInterval(() => {
+        try {
+          sendEvent(response, {
+            type: 'status',
+            message:
+              'Still drafting… large requests (many bureaus × issues) can take several minutes. Do not close this tab.',
+          })
+        } catch {
+          clearInterval(heartbeat)
+        }
+      }, 12_000)
+
+      try {
+        text =
+          provider === 'anthropic'
+            ? await generateWithAnthropic(prompt, uploads, authUser.id)
+            : await generateWithOpenAi(prompt, uploads, authUser.id)
+      } finally {
+        clearInterval(heartbeat)
+      }
+    }
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)
@@ -446,6 +468,14 @@ async function resolveOwnedUploads(fileIds, userId) {
 }
 
 function sendEvent(response, payload) {
+  if (!response._ssePatched && response.socket?.setNoDelay) {
+    try {
+      response.socket.setNoDelay(true)
+    } catch {
+      /* ignore */
+    }
+    response._ssePatched = true
+  }
   response.write(`data: ${JSON.stringify(payload)}\n\n`)
 }
 

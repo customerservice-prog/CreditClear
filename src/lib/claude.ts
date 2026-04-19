@@ -57,6 +57,8 @@ function dispatchSseFromLineBuffer(
   return { lineBuffer: buf, shouldStop: false }
 }
 
+const GENERATION_FETCH_TIMEOUT_MS = 22 * 60 * 1000
+
 export async function streamGeneratedLetters({
   accessToken,
   agencies,
@@ -65,47 +67,70 @@ export async function streamGeneratedLetters({
   issues,
   onEvent,
 }: GenerateLettersInput) {
-  const response = await fetch('/api/generate-dispute-draft', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      agencies,
-      files,
-      info,
-      issues,
-    }),
-  })
+  const abortController = new AbortController()
+  let bodyReader: ReadableStreamDefaultReader<Uint8Array> | null = null
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string }
-    throw new Error(payload.error || 'Unable to generate letters.')
-  }
-
-  const contentType = response.headers.get('content-type') || ''
-  if (contentType.includes('text/html')) {
-    const snippet = await response.clone().text()
-    throw new Error(
-      snippet.trimStart().startsWith('<!') || /<html[\s>]/i.test(snippet)
-        ? 'The app received an HTML page instead of a live stream. Confirm API routes are deployed with the static site.'
-        : 'Unexpected response while starting letter generation. Please try again.',
-    )
-  }
-
-  if (!response.body) {
-    throw new Error('Streaming is not available in this browser.')
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let lineBuffer = ''
-  const pendingData: string[] = []
+  const deadlineTimer = window.setTimeout(() => {
+    abortController.abort()
+    void bodyReader
+      ?.cancel()
+      .catch(() => {
+        /* ignore */
+      })
+  }, GENERATION_FETCH_TIMEOUT_MS)
 
   try {
+    const response = await fetch('/api/generate-dispute-draft', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        agencies,
+        files,
+        info,
+        issues,
+      }),
+      signal: abortController.signal,
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string }
+      throw new Error(payload.error || 'Unable to generate letters.')
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('text/html')) {
+      const snippet = await response.clone().text()
+      throw new Error(
+        snippet.trimStart().startsWith('<!') || /<html[\s>]/i.test(snippet)
+          ? 'The app received an HTML page instead of a live stream. Confirm API routes are deployed with the static site.'
+          : 'Unexpected response while starting letter generation. Please try again.',
+      )
+    }
+
+    if (!response.body) {
+      throw new Error('Streaming is not available in this browser.')
+    }
+
+    bodyReader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let lineBuffer = ''
+    const pendingData: string[] = []
+
     while (true) {
-      const { done, value } = await reader.read()
+      let readResult: ReadableStreamReadResult<Uint8Array>
+      try {
+        readResult = await bodyReader.read()
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          throw new Error('Letter generation timed out. Try fewer issues or bureaus, or try again later.')
+        }
+        throw error
+      }
+
+      const { done, value } = readResult
 
       if (value) {
         lineBuffer += decoder.decode(value, { stream: true })
@@ -152,8 +177,14 @@ export async function streamGeneratedLetters({
         break
       }
     }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Letter generation was cancelled or timed out. Try again with fewer selections.')
+    }
+    throw error
   } finally {
-    reader.releaseLock()
+    window.clearTimeout(deadlineTimer)
+    void bodyReader?.releaseLock()
   }
 }
 
