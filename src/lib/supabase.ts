@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 
 const AUTH_REFRESH_TOKEN_TIMEOUT_MS = 10_000
-const AUTH_PASSWORD_TOKEN_TIMEOUT_MS = 45_000
+/** When grant_type cannot be read (opaque Request body), cap wait so a stuck refresh cannot hang forever. */
 const AUTH_TOKEN_FALLBACK_TIMEOUT_MS = 25_000
 const AUTH_USER_LOGOUT_TIMEOUT_MS = 20_000
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000
@@ -28,25 +28,24 @@ function grantTypeFromInit(init?: RequestInit): string | undefined {
   return undefined
 }
 
-const fetchWithTimeout: typeof fetch = (input, init) => {
-  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : ''
-  const grantType = grantTypeFromInit(init)
-
-  let timeoutMs = DEFAULT_FETCH_TIMEOUT_MS
-  if (url.includes('/auth/v1/token')) {
-    if (grantType === 'refresh_token') {
-      timeoutMs = AUTH_REFRESH_TOKEN_TIMEOUT_MS
-    } else if (grantType === 'password') {
-      timeoutMs = AUTH_PASSWORD_TOKEN_TIMEOUT_MS
-    } else if (grantType) {
-      timeoutMs = AUTH_PASSWORD_TOKEN_TIMEOUT_MS
-    } else {
-      timeoutMs = AUTH_TOKEN_FALLBACK_TIMEOUT_MS
-    }
-  } else if (url.includes('/auth/v1/user') || url.includes('/auth/v1/logout')) {
-    timeoutMs = AUTH_USER_LOGOUT_TIMEOUT_MS
+/** GoTrue often puts `grant_type` in the query string (e.g. …/token?grant_type=password), not only the body. */
+function grantTypeFromUrl(rawUrl: string): string | undefined {
+  if (!rawUrl.includes('grant_type=')) {
+    return undefined
   }
+  try {
+    const parsed = new URL(rawUrl, 'https://auth.local')
+    return parsed.searchParams.get('grant_type') ?? undefined
+  } catch {
+    return undefined
+  }
+}
 
+function fetchWithAbort(
+  input: Parameters<typeof fetch>[0],
+  init: RequestInit | undefined,
+  timeoutMs: number,
+) {
   const controller = new AbortController()
   const timer = window.setTimeout(() => {
     controller.abort(new DOMException(`Request timed out after ${timeoutMs}ms`, 'AbortError'))
@@ -67,6 +66,35 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
   }).finally(() => {
     window.clearTimeout(timer)
   })
+}
+
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const url =
+    typeof input === 'string'
+      ? input
+      : input instanceof Request
+        ? input.url
+        : input instanceof URL
+          ? input.href
+          : ''
+  const grantType = grantTypeFromInit(init) ?? grantTypeFromUrl(url)
+
+  if (url.includes('/auth/v1/token')) {
+    if (grantType === 'refresh_token') {
+      return fetchWithAbort(input, init, AUTH_REFRESH_TOKEN_TIMEOUT_MS)
+    }
+    if (grantType) {
+      // Password, PKCE, etc. — use native fetch so our refresh timeout never cancels sign-in.
+      return fetch(input, init)
+    }
+    return fetchWithAbort(input, init, AUTH_TOKEN_FALLBACK_TIMEOUT_MS)
+  }
+
+  if (url.includes('/auth/v1/user') || url.includes('/auth/v1/logout')) {
+    return fetchWithAbort(input, init, AUTH_USER_LOGOUT_TIMEOUT_MS)
+  }
+
+  return fetchWithAbort(input, init, DEFAULT_FETCH_TIMEOUT_MS)
 }
 
 export const supabase = isSupabaseConfigured
