@@ -20,18 +20,52 @@ export function BlogPostPage({ onHome, onSignIn, onStartTrial }: BlogPostPagePro
     if (!post) {
       return null
     }
+    const articleUrl = `${SITE_URL}/blog/${post.slug}`
+    const iso = `${post.datePublished}T12:00:00.000Z`
     return {
       '@context': 'https://schema.org',
-      '@type': 'Article',
-      datePublished: post.datePublished,
-      description: post.description,
-      headline: post.title,
-      mainEntityOfPage: `${SITE_URL}/blog/${post.slug}`,
-      publisher: {
-        '@type': 'Organization',
-        name: 'CreditClear AI',
-        url: SITE_URL,
-      },
+      '@graph': [
+        {
+          '@type': 'Article',
+          author: {
+            '@type': 'Organization',
+            name: post.author,
+          },
+          dateModified: iso,
+          datePublished: iso,
+          description: post.description,
+          headline: post.title,
+          mainEntityOfPage: articleUrl,
+          publisher: {
+            '@type': 'Organization',
+            name: 'CreditClear AI',
+            url: SITE_URL,
+          },
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              item: `${SITE_URL}/`,
+              name: 'Home',
+              position: 1,
+            },
+            {
+              '@type': 'ListItem',
+              item: `${SITE_URL}/blog`,
+              name: 'Blog',
+              position: 2,
+            },
+            {
+              '@type': 'ListItem',
+              item: articleUrl,
+              name: post.title,
+              position: 3,
+            },
+          ],
+        },
+      ],
     }
   }, [post])
 
@@ -68,15 +102,19 @@ export function BlogPostPage({ onHome, onSignIn, onStartTrial }: BlogPostPagePro
           </div>
           <h1>{post.title}</h1>
           <p className="disc" style={{ fontSize: 13, marginTop: 0 }}>
-            Published {post.datePublished} · Educational only · Not legal advice
+            By {post.author} · Published {post.datePublished} · Educational only · Not legal advice
           </p>
           <div
-            className="disc"
+            className="disc blog-body"
             style={{ fontSize: 16, lineHeight: 1.75, marginTop: 24 }}
             dangerouslySetInnerHTML={{ __html: post.body }}
           />
           <p style={{ marginTop: 32 }}>
             <Link to="/blog">← All articles</Link>
+            {' · '}
+            <Link to="/">Home</Link>
+            {' · '}
+            <Link to="/pricing">Pricing</Link>
             {' · '}
             <Link to="/signup">Start free trial</Link>
           </p>

@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Home as HomePage } from './pages/Home'
 import { useAuthContext } from './context/useAuthContext'
 import { useSubscriptionContext } from './context/useSubscriptionContext'
 import { createCheckoutRequest, createPortalRequest } from './lib/apiClient'
@@ -16,6 +17,7 @@ import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
 import type { DisputeDetail, Letter } from './types'
 import { getBlogPostBySlug } from './data/blogPosts'
+import { getPublicEnv } from './lib/publicEnv'
 import { SITE_URL } from './lib/site'
 
 const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
@@ -31,7 +33,6 @@ const DashboardPage = lazy(() =>
 const DisputeDetailPage = lazy(() =>
   import('./pages/DisputeDetailPage').then((module) => ({ default: module.DisputeDetailPage })),
 )
-const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
 const LegalPage = lazy(() => import('./pages/LegalPage').then((module) => ({ default: module.LegalPage })))
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })))
 const NewDisputePage = lazy(() => import('./pages/App').then((module) => ({ default: module.AppPage })))
@@ -191,24 +192,39 @@ function AppRoutes() {
     upsertMetaProperty('og:title', meta.title)
     upsertMetaProperty('og:description', meta.description)
 
+    if (location.pathname.startsWith('/blog/')) {
+      const slug = location.pathname.slice('/blog/'.length)
+      const post = slug && !slug.includes('/') ? getBlogPostBySlug(slug) : undefined
+      if (post) {
+        const iso = `${post.datePublished}T12:00:00.000Z`
+        upsertMetaProperty('og:type', 'article')
+        upsertMetaProperty('article:published_time', iso)
+        upsertMetaProperty('article:modified_time', iso)
+        upsertMetaName('author', post.author)
+      } else {
+        upsertMetaProperty('og:type', 'website')
+        removeMetaProperty('article:published_time')
+        removeMetaProperty('article:modified_time')
+        document.querySelector('meta[name="author"]')?.remove()
+      }
+    } else {
+      upsertMetaProperty('og:type', 'website')
+      removeMetaProperty('article:published_time')
+      removeMetaProperty('article:modified_time')
+      document.querySelector('meta[name="author"]')?.remove()
+    }
+
     upsertMetaName('twitter:title', meta.title)
     upsertMetaName('twitter:description', meta.description)
 
-    const gsv = import.meta.env.VITE_GOOGLE_SITE_VERIFICATION
+    const gsv = getPublicEnv('VITE_GOOGLE_SITE_VERIFICATION')
     if (gsv) {
       upsertMetaName('google-site-verification', gsv)
-    } else {
-      document.querySelector('meta[name="google-site-verification"]')?.remove()
     }
 
-    const tw = import.meta.env.VITE_TWITTER_SITE?.replace(/^@/, '')
-    if (tw) {
-      upsertMetaName('twitter:site', `@${tw}`)
-      upsertMetaName('twitter:creator', `@${tw}`)
-    } else {
-      document.querySelector('meta[name="twitter:site"]')?.remove()
-      document.querySelector('meta[name="twitter:creator"]')?.remove()
-    }
+    const tw = (getPublicEnv('VITE_TWITTER_SITE') || 'creditclearai').replace(/^@/, '')
+    upsertMetaName('twitter:site', `@${tw}`)
+    upsertMetaName('twitter:creator', `@${tw}`)
 
     trackPageView(location.pathname + location.search, meta.title)
   }, [location.pathname, location.search])
@@ -761,7 +777,7 @@ function AppRoutes() {
     URL.revokeObjectURL(url)
   }
 
-  if (sessionLoading) {
+  if (sessionLoading && routeRequiresSessionGate(location.pathname)) {
     return (
       <>
         <Background />
@@ -1190,6 +1206,20 @@ function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 }
 
+/** Workspace routes must wait for Supabase session; public marketing pages render immediately. */
+function routeRequiresSessionGate(pathname: string): boolean {
+  if (pathname === '/app') {
+    return true
+  }
+  if (['/dashboard', '/billing', '/settings'].includes(pathname)) {
+    return true
+  }
+  if (pathname.startsWith('/disputes/')) {
+    return true
+  }
+  return false
+}
+
 function isPublicIndexablePath(pathname: string): boolean {
   const exact = new Set(['/', '/pricing', '/blog', '/contact', '/privacy', '/terms', '/disclaimer'])
   if (exact.has(pathname)) {
@@ -1240,6 +1270,10 @@ function upsertMetaProperty(property: string, content: string) {
     document.head.appendChild(el)
   }
   el.setAttribute('content', content)
+}
+
+function removeMetaProperty(property: string) {
+  document.querySelector(`meta[property="${property}"]`)?.remove()
 }
 
 function wait(ms: number) {

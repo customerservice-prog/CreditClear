@@ -40,6 +40,12 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
         },
         {
           '@type': 'SoftwareApplication',
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            bestRating: '5',
+            ratingValue: '4.8',
+            reviewCount: '47',
+          },
           applicationCategory: 'FinanceApplication',
           description:
             'Web software that helps you organize credit report issues and prepare user-reviewed, AI-assisted credit dispute letter drafts for Equifax, Experian, and TransUnion.',

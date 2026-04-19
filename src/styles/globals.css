@@ -4,3 +4,42 @@
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+
+.blog-body h2 {
+  color: rgba(255, 255, 255, 0.95);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.65rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 2rem 0 0.75rem;
+}
+
+.blog-body h3 {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin: 1.35rem 0 0.5rem;
+}
+
+.blog-body p {
+  margin: 0 0 1rem;
+}
+
+.blog-body a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.blog-body a:hover {
+  color: #f0d78a;
+}
+
+.blog-body code {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+}

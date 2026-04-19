@@ -33,7 +33,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(isSupabaseConfigured)
 
   const refreshAppUser = useCallback(
-    async (user = authUser, _accessToken = session?.access_token) => {
+    async (user = authUser) => {
       if (!user || !isSupabaseConfigured) {
         setAppUser(null)
         return null
@@ -76,7 +76,7 @@ export function useAuth() {
       setAppUser(nextUser)
       return nextUser
     },
-    [authUser, session?.access_token],
+    [authUser],
   )
 
   useEffect(() => {
@@ -115,8 +115,7 @@ export function useAuth() {
 
           if (nextSession?.user) {
             const user = nextSession.user
-            const token = nextSession.access_token
-            void raceRefreshAppUser(() => refreshAppUser(user, token), 'hydrate_profile')
+            void raceRefreshAppUser(() => refreshAppUser(user), 'hydrate_profile')
           }
         }
       } finally {
@@ -139,7 +138,7 @@ export function useAuth() {
 
         if (nextSession?.user) {
           void raceRefreshAppUser(
-            () => refreshAppUser(nextSession.user, nextSession.access_token),
+            () => refreshAppUser(nextSession.user),
             'auth_state_profile',
           )
         } else {
@@ -167,7 +166,7 @@ export function useAuth() {
 
     if (data.user) {
       void raceRefreshAppUser(
-        () => refreshAppUser(data.user!, data.session?.access_token),
+        () => refreshAppUser(data.user!),
         'sign_in_profile',
       )
     }
@@ -182,7 +181,7 @@ export function useAuth() {
 
     if (signInResult.user && signInResult.session?.access_token) {
       void raceRefreshAppUser(
-        () => refreshAppUser(signInResult.user!, signInResult.session!.access_token),
+        () => refreshAppUser(signInResult.user!),
         'sign_up_profile',
       )
     }

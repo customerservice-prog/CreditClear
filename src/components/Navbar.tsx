@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuthContext } from '../context/useAuthContext'
 import type { AppTab } from '../types'
 import { CTA_TRIAL_LABEL } from '../lib/site'
 
@@ -29,6 +30,7 @@ export function Navbar({
   userDisplayName,
 }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { authUser } = useAuthContext()
 
   if (isApp) {
     return (
@@ -100,23 +102,40 @@ export function Navbar({
         >
           Menu
         </button>
-        <button
-          className="btn-nav-ghost"
-          onClick={() => (onSignIn ? onSignIn() : onOpenAuth?.('login'))}
-          type="button"
-        >
-          Sign In
-        </button>
-        <button
-          className="btn-nav-gold"
-          onClick={() => (onStartTrial ? onStartTrial() : onOpenAuth?.('signup'))}
-          type="button"
-        >
-          {CTA_TRIAL_LABEL}
-        </button>
+        {authUser ? (
+          <Link className="btn-nav-ghost" to="/dashboard">
+            Dashboard
+          </Link>
+        ) : (
+          <button
+            className="btn-nav-ghost"
+            onClick={() => (onSignIn ? onSignIn() : onOpenAuth?.('login'))}
+            type="button"
+          >
+            Sign In
+          </button>
+        )}
+        {authUser ? (
+          <Link className="btn-nav-gold" to="/dashboard">
+            My workspace
+          </Link>
+        ) : (
+          <button
+            className="btn-nav-gold"
+            onClick={() => (onStartTrial ? onStartTrial() : onOpenAuth?.('signup'))}
+            type="button"
+          >
+            {CTA_TRIAL_LABEL}
+          </button>
+        )}
       </div>
       {menuOpen ? (
         <div className="nav-mobile-menu" id="nav-mobile-panel">
+          {authUser ? (
+            <Link to="/dashboard" onClick={() => setMenuOpen(false)}>
+              Dashboard
+            </Link>
+          ) : null}
           <Link to="/#how-it-works" onClick={() => setMenuOpen(false)}>
             How It Works
           </Link>
