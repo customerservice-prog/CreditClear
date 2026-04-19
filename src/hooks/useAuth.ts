@@ -1,13 +1,16 @@
 import type { Session, User } from '@supabase/supabase-js'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createAccountRequest } from '../lib/apiClient'
 import { captureClientError } from '../lib/monitoring'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
 
-/** Free-tier Supabase can take 15s+ to cold-start; avoid clearing the session while Auth is waking. */
-const GET_SESSION_TIMEOUT_MS = 60_000
-const REFRESH_PROFILE_BUDGET_MS = 25_000
+/**
+ * Cap `getSession()` wait so the app never spins forever. Must exceed the GoTrue token timeout in
+ * `supabase.ts` so a refresh during hydrate can finish (~45s + buffer).
+ */
+const GET_SESSION_TIMEOUT_MS = 52_000
+const REFRESH_PROFILE_BUDGET_MS = 20_000
 
 function sleep(ms: number) {
   return new Promise((resolve) => {
@@ -31,6 +34,7 @@ export function useAuth() {
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [appUser, setAppUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(isSupabaseConfigured)
+  const sessionProfileRefreshUserIdRef = useRef<string | null>(null)
 
   const refreshAppUser = useCallback(
     async (user = authUser) => {
@@ -87,6 +91,22 @@ export function useAuth() {
     const supabase = requireSupabase()
     let cancelled = false
 
+    const refreshProfileFromSession = (user: User, context: string) => {
+      if (sessionProfileRefreshUserIdRef.current === user.id) {
+        return
+      }
+      sessionProfileRefreshUserIdRef.current = user.id
+      void (async () => {
+        try {
+          await raceRefreshAppUser(() => refreshAppUser(user), context)
+        } finally {
+          if (sessionProfileRefreshUserIdRef.current === user.id) {
+            sessionProfileRefreshUserIdRef.current = null
+          }
+        }
+      })()
+    }
+
     void (async () => {
       try {
         const outcome = await Promise.race([
@@ -114,8 +134,7 @@ export function useAuth() {
           setAuthUser(nextSession?.user ?? null)
 
           if (nextSession?.user) {
-            const user = nextSession.user
-            void raceRefreshAppUser(() => refreshAppUser(user), 'hydrate_profile')
+            refreshProfileFromSession(nextSession.user, 'hydrate_profile')
           }
         }
       } finally {
@@ -137,10 +156,7 @@ export function useAuth() {
         setAuthUser(nextSession?.user ?? null)
 
         if (nextSession?.user) {
-          void raceRefreshAppUser(
-            () => refreshAppUser(nextSession.user),
-            'auth_state_profile',
-          )
+          refreshProfileFromSession(nextSession.user, 'auth_state_profile')
         } else {
           setAppUser(null)
         }
@@ -149,6 +165,7 @@ export function useAuth() {
 
     return () => {
       cancelled = true
+      sessionProfileRefreshUserIdRef.current = null
       subscription.unsubscribe()
     }
   }, [refreshAppUser])
@@ -164,30 +181,14 @@ export function useAuth() {
       throw error
     }
 
-    if (data.user) {
-      void raceRefreshAppUser(
-        () => refreshAppUser(data.user!),
-        'sign_in_profile',
-      )
-    }
-
     return data
-  }, [refreshAppUser])
+  }, [])
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     await createAccountRequest({ email, name, password })
 
-    const signInResult = await signIn(email, password)
-
-    if (signInResult.user && signInResult.session?.access_token) {
-      void raceRefreshAppUser(
-        () => refreshAppUser(signInResult.user!),
-        'sign_up_profile',
-      )
-    }
-
-    return signInResult
-  }, [refreshAppUser, signIn])
+    return await signIn(email, password)
+  }, [signIn])
 
   const signInWithGoogle = useCallback(async () => {
     const supabase = requireSupabase()

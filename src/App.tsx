@@ -462,6 +462,7 @@ function AppRoutes() {
     } catch (error) {
       captureClientError(error, { flow: 'google_auth' })
       setAuthError(formatAuthError(error))
+    } finally {
       setAuthLoading(false)
     }
   }

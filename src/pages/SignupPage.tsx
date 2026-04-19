@@ -44,6 +44,9 @@ export function SignupPage({
   signupName,
   signupPassword,
 }: SignupPageProps) {
+  const errText = error.trim()
+  const noticeText = notice.trim()
+
   return (
     <div className="page active">
       <SkipToContent />
@@ -61,11 +64,11 @@ export function SignupPage({
             disputes.
           </p>
           <div className="modal" style={{ margin: '0 auto', maxWidth: 440 }}>
-            <div className="auth-err" style={{ display: error ? 'block' : 'none' }}>
-              {error}
+            <div className="auth-err" style={{ display: errText ? 'block' : 'none' }}>
+              {errText}
             </div>
-            <div className="auth-msg" style={{ display: notice ? 'block' : 'none' }}>
-              {notice}
+            <div className="auth-msg" style={{ display: noticeText ? 'block' : 'none' }}>
+              {noticeText}
             </div>
             <div className="ff">
               <label htmlFor="signup-name">Full Name</label>

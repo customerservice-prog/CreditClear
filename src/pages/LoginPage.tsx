@@ -4,7 +4,7 @@ import { Navbar } from '../components/Navbar'
 
 interface LoginPageProps {
   authLoading: boolean
-  /** After a few seconds of waiting (e.g. Supabase cold start), show this instead of "Signing In...". */
+  /** After a few seconds of waiting (slow network or Auth), show this instead of "Signing In...". */
   authLoadingSlowHint?: boolean
   error: string
   loginEmail: string
@@ -38,6 +38,9 @@ export function LoginPage({
   onStartTrial,
   notice,
 }: LoginPageProps) {
+  const errText = error.trim()
+  const noticeText = notice.trim()
+
   return (
     <div className="page active">
       <SkipToContent />
@@ -52,11 +55,11 @@ export function LoginPage({
           </h1>
           <p className="hero-sub">Sign in to review saved disputes, uploads, and editable draft documents.</p>
           <div className="modal" style={{ margin: '0 auto', maxWidth: 440 }}>
-            <div className="auth-err" style={{ display: error ? 'block' : 'none' }}>
-              {error}
+            <div className="auth-err" style={{ display: errText ? 'block' : 'none' }}>
+              {errText}
             </div>
-            <div className="auth-msg" style={{ display: notice ? 'block' : 'none' }}>
-              {notice}
+            <div className="auth-msg" style={{ display: noticeText ? 'block' : 'none' }}>
+              {noticeText}
             </div>
             <div className="ff">
               <label htmlFor="login-email">Email Address</label>

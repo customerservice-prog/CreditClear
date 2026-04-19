@@ -147,11 +147,11 @@ export function ResetPasswordPage({ onHome, onSignIn, onStartTrial }: ResetPassw
           </h1>
           <p className="hero-sub">Enter a new password for {authUser.email ?? 'your account'}.</p>
           <div className="modal" style={{ margin: '0 auto', maxWidth: 440 }}>
-            <div className="auth-err" style={{ display: error ? 'block' : 'none' }}>
-              {error}
+            <div className="auth-err" style={{ display: error.trim() ? 'block' : 'none' }}>
+              {error.trim()}
             </div>
-            <div className="auth-msg" style={{ display: notice ? 'block' : 'none' }}>
-              {notice}
+            <div className="auth-msg" style={{ display: notice.trim() ? 'block' : 'none' }}>
+              {notice.trim()}
             </div>
             <form onSubmit={(event) => void handleSubmit(event)}>
               <div className="ff">

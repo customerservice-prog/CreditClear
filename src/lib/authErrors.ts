@@ -4,17 +4,24 @@ export function formatAuthError(error: unknown): string {
     return 'Request timed out or was interrupted. Check your connection and try again.'
   }
 
+  let msg = ''
   if (error instanceof Error) {
-    const msg = error.message
-    if (
-      /signal is aborted|aborted without reason|The operation was aborted|Failed to fetch|NetworkError|Load failed|timed out after \d+/i.test(
-        msg,
-      )
-    ) {
-      return 'Request timed out or was interrupted. Check your connection and try again.'
-    }
-    return msg
+    msg = error.message.trim()
+  } else if (error && typeof error === 'object' && 'message' in error) {
+    msg = String((error as { message: unknown }).message ?? '').trim()
   }
 
-  return 'Something went wrong. Please try again.'
+  if (!msg) {
+    return 'Something went wrong. Please try again.'
+  }
+
+  if (
+    /signal is aborted|aborted without reason|The operation was aborted|Failed to fetch|NetworkError|Load failed|timed out after \d+/i.test(
+      msg,
+    )
+  ) {
+    return 'Request timed out or was interrupted. Check your connection and try again.'
+  }
+
+  return msg
 }

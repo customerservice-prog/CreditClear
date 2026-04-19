@@ -6,48 +6,14 @@ const supabaseAnonKey = getPublicEnv('VITE_SUPABASE_ANON_KEY')
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 
-const AUTH_REFRESH_TOKEN_TIMEOUT_MS = 10_000
-const AUTH_USER_LOGOUT_TIMEOUT_MS = 20_000
+/**
+ * All `/auth/v1/token` grants (password, refresh, PKCE). Bounded so the login UI cannot hang forever;
+ * 45s covers slow networks while staying responsive on a warm project.
+ */
+const AUTH_GOTRUE_TOKEN_TIMEOUT_MS = 45_000
+const AUTH_SETTINGS_TIMEOUT_MS = 25_000
+const AUTH_USER_LOGOUT_TIMEOUT_MS = 15_000
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000
-
-function grantTypeFromInit(init?: RequestInit): string | undefined {
-  if (!init?.body) {
-    return undefined
-  }
-  if (typeof init.body === 'string') {
-    const trimmed = init.body.trim()
-    if (trimmed.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(trimmed) as { grant_type?: unknown }
-        return typeof parsed.grant_type === 'string' ? parsed.grant_type : undefined
-      } catch {
-        return undefined
-      }
-    }
-    try {
-      return new URLSearchParams(init.body).get('grant_type') ?? undefined
-    } catch {
-      return undefined
-    }
-  }
-  if (init.body instanceof URLSearchParams) {
-    return init.body.get('grant_type') ?? undefined
-  }
-  return undefined
-}
-
-/** GoTrue often puts `grant_type` in the query string (e.g. …/token?grant_type=password), not only the body. */
-function grantTypeFromUrl(rawUrl: string): string | undefined {
-  if (!rawUrl.includes('grant_type=')) {
-    return undefined
-  }
-  try {
-    const parsed = new URL(rawUrl, 'https://auth.local')
-    return parsed.searchParams.get('grant_type') ?? undefined
-  } catch {
-    return undefined
-  }
-}
 
 function fetchWithAbort(
   input: Parameters<typeof fetch>[0],
@@ -85,15 +51,13 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
         : input instanceof URL
           ? input.href
           : ''
-  const grantType = grantTypeFromInit(init) ?? grantTypeFromUrl(url)
 
   if (url.includes('/auth/v1/token')) {
-    if (grantType === 'refresh_token') {
-      return fetchWithAbort(input, init, AUTH_REFRESH_TOKEN_TIMEOUT_MS)
-    }
-    // Password, PKCE, or grant_type on URL/body we could not read synchronously — never apply a client abort.
-    // (A 25s fallback was still killing password logins when the body was JSON or the Request body was opaque.)
-    return fetch(input, init)
+    return fetchWithAbort(input, init, AUTH_GOTRUE_TOKEN_TIMEOUT_MS)
+  }
+
+  if (url.includes('/auth/v1/settings')) {
+    return fetchWithAbort(input, init, AUTH_SETTINGS_TIMEOUT_MS)
   }
 
   if (url.includes('/auth/v1/user') || url.includes('/auth/v1/logout')) {
@@ -115,21 +79,6 @@ export const supabase = isSupabaseConfigured
     },
   })
   : null
-
-/** Fire-and-forget: wakes Auth on free-tier Supabase after auto-pause (cold start ~15s otherwise). */
-function pingSupabaseAuthWarmup(baseUrl: string, anonKey: string) {
-  if (typeof window === 'undefined') {
-    return
-  }
-  const root = baseUrl.replace(/\/$/, '')
-  void fetch(`${root}/auth/v1/settings`, {
-    headers: { apikey: anonKey },
-  }).catch(() => {})
-}
-
-if (isSupabaseConfigured && supabaseUrl && supabaseAnonKey) {
-  pingSupabaseAuthWarmup(supabaseUrl, supabaseAnonKey)
-}
 
 export function requireSupabase() {
   if (!supabase) {
