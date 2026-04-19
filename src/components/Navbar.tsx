@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AppTab } from '../types'
+import { CTA_TRIAL_LABEL } from '../lib/site'
 
 interface NavbarProps {
   appTab?: AppTab
@@ -32,7 +33,7 @@ export function Navbar({
 
   if (isApp) {
     return (
-      <nav className="app-nav">
+      <nav aria-label="Workspace" className="app-nav">
         <button className="app-nav-logo" onClick={onHomeClick} type="button">
           <div className="logo-mark">CC</div>
           <div className="logo-wordmark">
@@ -72,7 +73,7 @@ export function Navbar({
   }
 
   return (
-    <nav className="nav">
+    <nav aria-label="Main navigation" className="nav">
       <button
         className="nav-logo"
         onClick={() => onHomeClick?.() || window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -85,16 +86,17 @@ export function Navbar({
       </button>
       {onScrollTo ? (
         <div className="nav-links">
-          <button onClick={() => onScrollTo('how-it-works')} type="button">How It Works</button>
-          <button onClick={() => onScrollTo('features-sec')} type="button">What We Fix</button>
-          <button onClick={() => onScrollTo('pricing-sec')} type="button">Pricing</button>
-          <button onClick={() => onScrollTo('results-sec')} type="button">Results</button>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#features-sec">What We Fix</a>
+          <a href="#pricing-sec">Pricing</a>
+          <a href="#results-sec">Results</a>
         </div>
       ) : null}
       <div className="nav-right">
         {onScrollTo ? (
           <button
             aria-expanded={menuOpen}
+            aria-haspopup="true"
             className="btn-nav-ghost nav-menu-btn"
             onClick={() => setMenuOpen((value) => !value)}
             type="button"
@@ -114,15 +116,23 @@ export function Navbar({
           onClick={() => (onStartTrial ? onStartTrial() : onOpenAuth?.('signup'))}
           type="button"
         >
-          Start Free Trial
+          {CTA_TRIAL_LABEL}
         </button>
       </div>
       {onScrollTo && menuOpen ? (
-        <div className="nav-mobile-menu">
-          <button onClick={() => { setMenuOpen(false); onScrollTo('how-it-works') }} type="button">How It Works</button>
-          <button onClick={() => { setMenuOpen(false); onScrollTo('features-sec') }} type="button">What We Fix</button>
-          <button onClick={() => { setMenuOpen(false); onScrollTo('pricing-sec') }} type="button">Pricing</button>
-          <button onClick={() => { setMenuOpen(false); onScrollTo('results-sec') }} type="button">Results</button>
+        <div className="nav-mobile-menu" id="nav-mobile-panel">
+          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>
+            How It Works
+          </a>
+          <a href="#features-sec" onClick={() => setMenuOpen(false)}>
+            What We Fix
+          </a>
+          <a href="#pricing-sec" onClick={() => setMenuOpen(false)}>
+            Pricing
+          </a>
+          <a href="#results-sec" onClick={() => setMenuOpen(false)}>
+            Results
+          </a>
         </div>
       ) : null}
     </nav>

@@ -9,6 +9,7 @@ import { createInitialState } from './lib/constants'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { buildLetterFileName } from './lib/formatters'
 import { captureClientError } from './lib/monitoring'
+import { MarketingMain, SkipToContent } from './components/MarketingPageFrame'
 import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
@@ -682,15 +683,18 @@ function AppRoutes() {
       <>
         <Background />
         <div className="page active">
-          <div className="hero">
-            <div className="hero-badge">
-              <div className="pulse-dot"></div> Loading Account
+          <SkipToContent />
+          <MarketingMain>
+            <div aria-busy="true" aria-live="polite" className="hero" role="status">
+              <div className="hero-badge">
+                <div className="pulse-dot"></div> Loading Account
+              </div>
+              <h1>
+                Preparing Your <em>Workspace</em>
+              </h1>
+              <p className="hero-sub">Syncing your session, profile, and billing access.</p>
             </div>
-            <h1>
-              Preparing Your <em>Workspace</em>
-            </h1>
-            <p className="hero-sub">Syncing your session, profile, and billing access.</p>
-          </div>
+          </MarketingMain>
         </div>
       </>
     )
@@ -702,15 +706,18 @@ function AppRoutes() {
       <Suspense
         fallback={
           <div className="page active">
-            <div className="hero">
-              <div className="hero-badge">
-                <div className="pulse-dot"></div> Loading Page
+            <SkipToContent />
+            <MarketingMain>
+              <div aria-busy="true" aria-live="polite" className="hero" role="status">
+                <div className="hero-badge">
+                  <div className="pulse-dot"></div> Loading Page
+                </div>
+                <h1>
+                  Preparing Your Next <em>Step</em>
+                </h1>
+                <p className="hero-sub">Loading the secure workspace view.</p>
               </div>
-              <h1>
-                Preparing Your Next <em>Step</em>
-              </h1>
-              <p className="hero-sub">Loading the secure workspace view.</p>
-            </div>
+            </MarketingMain>
           </div>
         }
       >
@@ -1026,7 +1033,16 @@ function AppRoutes() {
             )
           }
         />
-          <Route path="*" element={<NotFoundPage onHome={() => navigate('/')} />} />
+          <Route
+            path="*"
+            element={
+              <NotFoundPage
+                onHome={() => navigate('/')}
+                onSignIn={() => navigate('/login')}
+                onStartTrial={() => navigate('/signup')}
+              />
+            }
+          />
         </Routes>
       </Suspense>
     </>

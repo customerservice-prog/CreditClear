@@ -1,4 +1,7 @@
+import { Link } from 'react-router-dom'
+import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
+import { CTA_TRIAL_LABEL } from '../lib/site'
 
 interface SignupPageProps {
   acceptedTerms: boolean
@@ -41,46 +44,85 @@ export function SignupPage({
 }: SignupPageProps) {
   return (
     <div className="page active">
+      <SkipToContent />
       <Navbar onHomeClick={onBackHome} onSignIn={onSignIn} onStartTrial={onStartTrial} />
-      <div className="hero" style={{ maxWidth: 520 }}>
-        <div className="hero-badge"><div className="pulse-dot"></div> Start Free Trial</div>
-        <h1>
-          Build Your <em>Credit Workspace</em>
-        </h1>
-        <p className="hero-sub">Create an account to organize issues, upload report documents, and generate review-ready draft disputes.</p>
-        <div className="modal" style={{ margin: '0 auto', maxWidth: 440 }}>
-          <div className="auth-err" style={{ display: error ? 'block' : 'none' }}>{error}</div>
-          <div className="auth-msg" style={{ display: notice ? 'block' : 'none' }}>{notice}</div>
-          <div className="ff">
-            <label>Full Name</label>
-            <input onChange={(event) => onNameChange(event.target.value)} type="text" value={signupName} />
+      <MarketingMain>
+        <div className="hero" style={{ maxWidth: 520 }}>
+          <div className="hero-badge">
+            <div className="pulse-dot"></div> {CTA_TRIAL_LABEL}
           </div>
-          <div className="ff">
-            <label>Email Address</label>
-            <input onChange={(event) => onEmailChange(event.target.value)} type="email" value={signupEmail} />
-          </div>
-          <div className="ff">
-            <label>Password</label>
-            <input onChange={(event) => onPasswordChange(event.target.value)} type="password" value={signupPassword} />
-          </div>
-          <label className="check-row">
-            <input checked={acceptedTerms} onChange={(event) => onAcceptedTermsChange(event.target.checked)} type="checkbox" />
-            <span>
-              I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.
-            </span>
-          </label>
-          <button className="btn-auth" disabled={authLoading} onClick={onSignup} type="button">
-            {authLoading ? 'Creating Account...' : 'Create Account'}
-          </button>
-          <div className="auth-div"><span>or</span></div>
-          <button className="social-btn" disabled={authLoading} onClick={onGoogle} type="button">
-            Continue with Google
-          </button>
-          <div className="auth-switch">
-            Already have an account? <button onClick={onLoginRoute} type="button">Sign in</button>
+          <h1>
+            Build Your <em>Credit Workspace</em>
+          </h1>
+          <p className="hero-sub">
+            Create an account to organize issues, upload report documents, and generate review-ready draft
+            disputes.
+          </p>
+          <div className="modal" style={{ margin: '0 auto', maxWidth: 440 }}>
+            <div className="auth-err" style={{ display: error ? 'block' : 'none' }}>
+              {error}
+            </div>
+            <div className="auth-msg" style={{ display: notice ? 'block' : 'none' }}>
+              {notice}
+            </div>
+            <div className="ff">
+              <label htmlFor="signup-name">Full Name</label>
+              <input
+                autoComplete="name"
+                id="signup-name"
+                onChange={(event) => onNameChange(event.target.value)}
+                type="text"
+                value={signupName}
+              />
+            </div>
+            <div className="ff">
+              <label htmlFor="signup-email">Email Address</label>
+              <input
+                autoComplete="email"
+                id="signup-email"
+                onChange={(event) => onEmailChange(event.target.value)}
+                type="email"
+                value={signupEmail}
+              />
+            </div>
+            <div className="ff">
+              <label htmlFor="signup-password">Password</label>
+              <input
+                autoComplete="new-password"
+                id="signup-password"
+                onChange={(event) => onPasswordChange(event.target.value)}
+                type="password"
+                value={signupPassword}
+              />
+            </div>
+            <label className="check-row">
+              <input
+                checked={acceptedTerms}
+                onChange={(event) => onAcceptedTermsChange(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                I agree to the <Link to="/terms">Terms</Link> and <Link to="/privacy">Privacy Policy</Link>.
+              </span>
+            </label>
+            <button className="btn-auth" disabled={authLoading} onClick={onSignup} type="button">
+              {authLoading ? 'Creating Account...' : 'Create Account'}
+            </button>
+            <div className="auth-div">
+              <span>or</span>
+            </div>
+            <button className="social-btn" disabled={authLoading} onClick={onGoogle} type="button">
+              Continue with Google
+            </button>
+            <div className="auth-switch">
+              Already have an account?{' '}
+              <button onClick={onLoginRoute} type="button">
+                Sign in
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </MarketingMain>
     </div>
   )
 }

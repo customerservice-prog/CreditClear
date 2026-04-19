@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 
 interface ContactPageProps {
@@ -30,8 +31,10 @@ export function ContactPage({ onHome, onSignIn, onStartTrial }: ContactPageProps
 
   return (
     <div className="page active">
+      <SkipToContent />
       <Navbar onHomeClick={onHome} onSignIn={onSignIn} onStartTrial={onStartTrial} />
-      <div className="hero" style={{ maxWidth: 560, paddingBottom: 24 }}>
+      <MarketingMain>
+        <div className="hero" style={{ maxWidth: 560, paddingBottom: 24 }}>
         <div className="hero-badge">
           <div className="pulse-dot"></div> Contact
         </div>
@@ -102,7 +105,8 @@ export function ContactPage({ onHome, onSignIn, onStartTrial }: ContactPageProps
             </p>
           </form>
         </div>
-      </div>
+        </div>
+      </MarketingMain>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { captureClientError } from '../lib/monitoring'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
 
-const GET_SESSION_TIMEOUT_MS = 20_000
+const GET_SESSION_TIMEOUT_MS = 8000
 const REFRESH_PROFILE_BUDGET_MS = 25_000
 
 function sleep(ms: number) {
@@ -98,23 +98,35 @@ export function useAuth() {
 
     void (async () => {
       try {
-        const { data } = await Promise.race([
-          supabase.auth.getSession(),
-          sleep(GET_SESSION_TIMEOUT_MS).then(() => ({ data: { session: null as Session | null } })),
+        const outcome = await Promise.race([
+          supabase.auth.getSession().then((r) => ({ kind: 'ok' as const, r })),
+          sleep(GET_SESSION_TIMEOUT_MS).then(() => ({ kind: 'timeout' as const })),
         ])
 
         if (cancelled) {
           return
         }
 
-        const nextSession = data.session ?? null
-        setSession(nextSession)
-        setAuthUser(nextSession?.user ?? null)
+        if (outcome.kind === 'timeout') {
+          try {
+            await supabase.auth.signOut({ scope: 'local' })
+          } catch {
+            /* still drop client state so the UI is not stuck */
+          }
+          setSession(null)
+          setAuthUser(null)
+          setAppUser(null)
+        } else {
+          const { data } = outcome.r
+          const nextSession = data.session ?? null
+          setSession(nextSession)
+          setAuthUser(nextSession?.user ?? null)
 
-        if (nextSession?.user) {
-          const user = nextSession.user
-          const token = nextSession.access_token
-          void raceRefreshAppUser(() => refreshAppUser(user, token), 'hydrate_profile')
+          if (nextSession?.user) {
+            const user = nextSession.user
+            const token = nextSession.access_token
+            void raceRefreshAppUser(() => refreshAppUser(user, token), 'hydrate_profile')
+          }
         }
       } finally {
         if (!cancelled) {
