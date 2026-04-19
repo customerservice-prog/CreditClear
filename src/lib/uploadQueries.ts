@@ -62,3 +62,16 @@ export async function listUploadsForDispute(
 
   return { data: null, error: preferred.error }
 }
+
+const BUCKET = 'private-uploads'
+
+/** Removes the storage object and the `uploads` row. Caller should ensure RLS allows delete. */
+export async function deleteUploadForCurrentUser(supabase: SupabaseClient, upload: UploadRecord) {
+  const { error: storageError } = await supabase.storage.from(BUCKET).remove([upload.file_path])
+  if (storageError) {
+    return { error: storageError }
+  }
+
+  const { error: dbError } = await supabase.from('uploads').delete().eq('id', upload.id)
+  return { error: dbError ?? null }
+}

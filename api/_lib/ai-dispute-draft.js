@@ -8,12 +8,22 @@ const MAX_EXCERPT = 10_000
 
 function buildUserPrompt({
   agencyName,
+  issueDetail,
   issueLabel,
   consumerName,
   addressLine,
   extractedSnippet,
 }) {
   const snippet = String(extractedSnippet || '').trim().slice(0, MAX_EXCERPT)
+  const manual =
+    issueDetail?.creditorName?.trim() &&
+    `The consumer entered these account fields for this dispute (use faithfully; do not contradict them):
+- Creditor: ${String(issueDetail.creditorName).trim()}
+- Account reference (last digits or partial): ${String(issueDetail.accountLast4 || '').trim() || 'not provided'}
+- Amount/balance: ${String(issueDetail.amountOrBalance || '').trim() || 'not provided'}
+- Date/status: ${String(issueDetail.reportedDate || '').trim() || 'not provided'}
+- Dispute reason: ${String(issueDetail.disputeReason || '').trim() || 'not provided'}
+`
   return `You are helping a U.S. consumer draft ONE paragraph for a Fair Credit Reporting Act (FCRA) dispute letter to ${agencyName}.
 
 Issue category to focus on: ${issueLabel}
@@ -21,6 +31,7 @@ Issue category to focus on: ${issueLabel}
 Consumer name: ${consumerName}
 Consumer mailing address (if provided): ${addressLine || 'Not provided'}
 
+${manual || ''}
 ${snippet ? `Below is machine-extracted text from the consumer’s uploaded credit report PDF(s). Use ONLY details that clearly appear here (creditor names, approximate balances, dates, account numbers). If the excerpt is empty or unclear, write a general but still substantive dispute paragraph that names the issue type and requests verification — do not invent specific account numbers or dollar amounts.\n\n--- BEGIN REPORT EXCERPT ---\n${snippet}\n--- END REPORT EXCERPT ---\n` : 'No report text was extracted. Write a substantive paragraph that identifies the dispute topic, cites the consumer’s right to a reasonable investigation under the FCRA (mention 15 U.S.C. § 1681i as applicable), and demands deletion or correction if the information cannot be verified — without fabricating account-level facts.\n'}
 
 Requirements:
@@ -116,7 +127,7 @@ async function anthropicParagraph(prompt) {
  * @param {() => string} opts.fallback - sync template paragraph
  */
 export async function generateAiDisputeParagraph(opts) {
-  const { agencyName, issueLabel, info, extractedText, fallback } = opts
+  const { agencyName, issueDetail, issueLabel, info, extractedText, fallback } = opts
   const consumerName = `${info?.firstName || ''} ${info?.lastName || ''}`.trim() || 'The consumer'
   const addressLine = [info?.address, [info?.city, info?.state].filter(Boolean).join(', '), info?.zip]
     .filter(Boolean)
@@ -127,6 +138,7 @@ export async function generateAiDisputeParagraph(opts) {
     agencyName,
     consumerName,
     extractedSnippet: extractedText,
+    issueDetail,
     issueLabel,
   })
 

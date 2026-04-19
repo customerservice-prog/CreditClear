@@ -3,10 +3,21 @@ import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { PricingCard } from '../components/PricingCard'
+import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
 import { AGENCIES, ANALYSIS_STEPS, ISSUES, PILLS, STEPS } from '../lib/constants'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import { getPersonalFieldErrors } from '../lib/validators'
-import type { AgencyId, AppInfo, AppState, AppTab, DisputeRecord, IssueId, Letter, ReportBureauTag } from '../types'
+import type {
+  AgencyId,
+  AppInfo,
+  AppState,
+  AppTab,
+  DisputeRecord,
+  IssueAccountDetail,
+  IssueId,
+  Letter,
+  ReportBureauTag,
+} from '../types'
 
 interface AppPageProps {
   appState: AppState
@@ -22,7 +33,9 @@ interface AppPageProps {
   onDisputeTitleChange: (value: string) => void
   onDownloadAll: () => void
   onDownloadLetter: (letter: Letter) => void
+  onDownloadLetterPdf: (letter: Letter) => void
   onFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
+  onIssueDetailChange: (issue: IssueId, patch: Partial<IssueAccountDetail>) => void
   onGoToStep: (step: number) => void
   onLoadDispute: (record: DisputeRecord) => void
   onRemoveFile: (index: number) => void
@@ -74,7 +87,9 @@ export function AppPage({
   onDisputeTitleChange,
   onDownloadAll,
   onDownloadLetter,
+  onDownloadLetterPdf,
   onFieldChange,
+  onIssueDetailChange,
   onGoToStep,
   onLoadDispute,
   onRemoveFile,
@@ -194,7 +209,9 @@ export function AppPage({
             onDisputeTitleChange,
             onDownloadAll,
             onDownloadLetter,
+            onDownloadLetterPdf,
             onGoToStep,
+            onIssueDetailChange,
             onRemoveFile,
             onResetApp,
             onSetFileReportBureau,
@@ -302,7 +319,9 @@ function renderGeneratorStep({
   onDisputeTitleChange,
   onDownloadAll,
   onDownloadLetter,
+  onDownloadLetterPdf,
   onGoToStep,
+  onIssueDetailChange,
   onRemoveFile,
   onResetApp,
   onSetFileReportBureau,
@@ -322,7 +341,9 @@ function renderGeneratorStep({
   onDisputeTitleChange: (value: string) => void
   onDownloadAll: () => void
   onDownloadLetter: (letter: Letter) => void
+  onDownloadLetterPdf: (letter: Letter) => void
   onGoToStep: (step: number) => void
+  onIssueDetailChange: (issue: IssueId, patch: Partial<IssueAccountDetail>) => void
   onRemoveFile: (index: number) => void
   onResetApp: () => void
   onSetFileReportBureau: (fileId: string, bureau: ReportBureauTag | null) => void
@@ -356,6 +377,7 @@ function renderGeneratorStep({
           onAttemptContinuePersonal,
           onDisputeTitleChange,
           onGoToStep,
+          onIssueDetailChange,
           onPersonalFieldChange,
           personalFieldErrors,
           onRemoveFile,
@@ -423,7 +445,10 @@ function renderGeneratorStep({
               >
                 ⎘ Copy Letter
               </button>
-              <button className="b-dl" onClick={() => onDownloadLetter(letter)} type="button">
+              <button className="b-dl" onClick={() => onDownloadLetterPdf(letter)} type="button">
+                ↓ Download PDF
+              </button>
+              <button className="b-copy" onClick={() => onDownloadLetter(letter)} type="button">
                 ↓ Download .txt
               </button>
             </div>
@@ -439,7 +464,7 @@ function renderGeneratorStep({
           New Dispute
         </button>
         <button className="btn btn-gold" onClick={onDownloadAll} type="button">
-          ↓ Download All
+          ↓ Download all as PDF
         </button>
       </div>
     </div>
@@ -454,6 +479,7 @@ function renderWizardStep({
   onAttemptContinuePersonal,
   onDisputeTitleChange,
   onGoToStep,
+  onIssueDetailChange,
   onPersonalFieldChange,
   personalFieldErrors,
   onRemoveFile,
@@ -469,6 +495,7 @@ function renderWizardStep({
   onAttemptContinuePersonal: () => void
   onDisputeTitleChange: (value: string) => void
   onGoToStep: (step: number) => void
+  onIssueDetailChange: (issue: IssueId, patch: Partial<IssueAccountDetail>) => void
   onPersonalFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
   personalFieldErrors: Partial<Record<keyof AppInfo, string>>
   onRemoveFile: (index: number) => void
@@ -481,7 +508,9 @@ function renderWizardStep({
     return (
       <div className="card">
         <div className="card-t">Personal Information</div>
-        <div className="card-s">Used only to personalize your dispute letters. Never shared or sold.</div>
+        <div className="card-s">
+          Used only to personalize your dispute letters. Never shared or sold. Street, city, state, and ZIP are required before generating — they appear on each letter to the bureaus.
+        </div>
         <div className="fg">
           <div className="f sp">
             <label htmlFor="dispute-title">Name this dispute (optional)</label>
@@ -545,6 +574,11 @@ function renderWizardStep({
               >
                 <div className="an">{agency.name}</div>
                 <div className="asub">Credit Bureau</div>
+                <div className="abus" style={{ fontSize: 10, color: 'var(--txt3)', lineHeight: 1.45, marginTop: 10 }}>
+                  {BUREAU_DISPLAY_LINES[agency.id].map((line) => (
+                    <div key={line}>{line}</div>
+                  ))}
+                </div>
                 <div className="ach">{selected ? '✓' : ''}</div>
               </button>
             )
@@ -568,28 +602,87 @@ function renderWizardStep({
       <div className="card">
         <div className="card-t">What&apos;s on Your Report?</div>
         <div className="card-s">
-          Select every issue type — we&apos;ll create a targeted draft for each one.
+          Select issue types, then add creditor / account details for each (or rely on a credit report upload in the next step). Each combination of bureau × issue gets its own draft with distinct dispute language.
         </div>
         <button className="sa-btn" onClick={() => onSetSelectedIssues(allSelected ? [] : ISSUES.map((item) => item.id))} type="button">
           {allSelected ? 'Deselect All' : 'Select All Issues'}
         </button>
-        <div className="ig">
+        <div className="issue-acc">
           {ISSUES.map((issue) => {
             const selected = appState.issues.includes(issue.id)
+            const detail = appState.issueDetails[issue.id] ?? {
+              accountLast4: '',
+              amountOrBalance: '',
+              creditorName: '',
+              disputeReason: '',
+              reportedDate: '',
+            }
             return (
-              <button
-                className={`ic${selected ? ' sel' : ''}`}
-                key={issue.id}
-                onClick={() =>
-                  onSetSelectedIssues(
-                    selected ? appState.issues.filter((value) => value !== issue.id) : [...appState.issues, issue.id],
-                  )
-                }
-                type="button"
-              >
-                <span className="ii">{issue.icon}</span>
-                <span className="il">{issue.label}</span>
-              </button>
+              <div className={`issue-acc-row${selected ? ' open' : ''}`} key={issue.id}>
+                <button
+                  className={`ic ic-block${selected ? ' sel' : ''}`}
+                  onClick={() =>
+                    onSetSelectedIssues(
+                      selected ? appState.issues.filter((value) => value !== issue.id) : [...appState.issues, issue.id],
+                    )
+                  }
+                  type="button"
+                >
+                  <span className="ii">{issue.icon}</span>
+                  <span className="il">{issue.label}</span>
+                  <span className="ic-hint">{selected ? 'Details below · click to deselect' : 'Click to select — account form opens below'}</span>
+                </button>
+                {selected ? (
+                  <div className="idetail">
+                    <div className="card-s" style={{ marginBottom: 12, fontSize: 13 }}>
+                      Enter creditor / account details for this issue (required if you skip a credit report upload on the next step).
+                    </div>
+                    <div className="fg">
+                      <div className="f sp">
+                        <label>Creditor / subscriber name</label>
+                        <input
+                          onChange={(e) => onIssueDetailChange(issue.id, { creditorName: e.target.value })}
+                          placeholder="e.g., Capital One"
+                          value={detail.creditorName}
+                        />
+                      </div>
+                      <div className="f">
+                        <label>Account (last 4 or partial)</label>
+                        <input
+                          onChange={(e) => onIssueDetailChange(issue.id, { accountLast4: e.target.value })}
+                          placeholder="4821"
+                          value={detail.accountLast4}
+                        />
+                      </div>
+                      <div className="f">
+                        <label>Balance / amount (optional)</label>
+                        <input
+                          onChange={(e) => onIssueDetailChange(issue.id, { amountOrBalance: e.target.value })}
+                          placeholder="$1,234"
+                          value={detail.amountOrBalance}
+                        />
+                      </div>
+                      <div className="f">
+                        <label>Date / status as reported (optional)</label>
+                        <input
+                          onChange={(e) => onIssueDetailChange(issue.id, { reportedDate: e.target.value })}
+                          placeholder="Mar 2024 / Open / Charged off"
+                          value={detail.reportedDate}
+                        />
+                      </div>
+                      <div className="f sp">
+                        <label>Why are you disputing this?</label>
+                        <textarea
+                          onChange={(e) => onIssueDetailChange(issue.id, { disputeReason: e.target.value })}
+                          placeholder="Brief explanation for the bureau"
+                          rows={3}
+                          value={detail.disputeReason}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             )
           })}
         </div>
@@ -609,7 +702,7 @@ function renderWizardStep({
     <div className="card">
       <div className="card-t">Upload Your Credit Report</div>
       <div className="card-s">
-        Drag &amp; drop a PDF or screenshot to attach to your dispute (optional). For each file, choose which bureau it belongs to (or Combined for one tri-merge file) so letters reference the correct report.{' '}
+        <strong>Strongly recommended:</strong> upload the bureau PDF (text-selectable) so we can extract report text into your letters. You must either upload at least one file here <em>or</em> fill in creditor names in the previous step — otherwise generation is blocked. Label each file for the correct bureau (or Combined).{' '}
         <Link style={{ color: 'var(--gold)' }} to="/credit-reports">
           View all your saved report uploads
         </Link>
@@ -618,7 +711,9 @@ function renderWizardStep({
       <label className="uz">
         <span className="ui-big">📂</span>
         <div className="ut">Drop Your Credit Report Here</div>
-        <div className="us">Drag &amp; drop or click to browse · PDF, JPG, PNG, HEIC</div>
+        <div className="us">
+          Not optional if you skip creditor details: upload a bureau PDF here <strong>or</strong> go back and add creditor names on Issues.
+        </div>
         <div className="utags">
           <span className="utag">PDF</span>
           <span className="utag">JPG</span>
@@ -669,7 +764,7 @@ function renderWizardStep({
       </button>
       <div className="skip-lnk">
         <button onClick={onStartAnalysis} type="button">
-          Skip upload — generate from my selections
+          Generate without uploading — only if you entered creditor details for each issue on Step 3
         </button>
       </div>
       <div className="btn-row">

@@ -8,15 +8,22 @@ import { trackEvent, trackPageView } from './lib/analytics'
 import { streamGeneratedLetters } from './lib/letterStream'
 import { createInitialState } from './lib/constants'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
+import { downloadLetterAsPdf } from './lib/downloadLetterPdf'
 import { buildAutoDisputeTitle, buildLetterFileName } from './lib/formatters'
+import { splitProfileFirstLast } from './lib/profileName'
 import { captureClientError } from './lib/monitoring'
 import { MarketingMain, SkipToContent } from './components/MarketingPageFrame'
 import { formatAuthError } from './lib/authErrors'
-import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
+import {
+  hasLetterGenerationSource,
+  sanitizeEditableLetterText,
+  validateAppInfo,
+  validateMailingAddressForLetters,
+} from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
 import { validateFileCoverageForAgencies } from './lib/reportCoverage'
-import type { AppInfo, DisputeDetail, DisputeRecord, Letter, ReportBureauTag } from './types'
+import type { AppInfo, DisputeDetail, DisputeRecord, IssueId, Letter, ReportBureauTag } from './types'
 import { getBlogPostBySlug } from './data/blogPosts'
 import { getPublicEnv } from './lib/publicEnv'
 import { SITE_URL } from './lib/site'
@@ -266,8 +273,17 @@ function AppRoutes() {
   )
 
   const userDisplayName = useMemo(() => {
-    const fullName = appUser?.name || authUser?.user_metadata?.full_name || authUser?.email || 'User'
-    return String(fullName).split(' ')[0] || 'User'
+    const saved = appUser?.saved_contact
+    const { firstName, lastName } = splitProfileFirstLast(
+      appUser?.name || authUser?.user_metadata?.full_name,
+      saved,
+      authUser?.email ?? null,
+    )
+    const combined = [firstName, lastName].filter(Boolean).join(' ').trim()
+    if (combined) {
+      return combined.split(/\s+/)[0] ?? 'Account'
+    }
+    return 'Account'
   }, [appUser, authUser])
 
   useEffect(() => {
@@ -275,16 +291,19 @@ function AppRoutes() {
       return
     }
 
-    const fullName = appUser?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || ''
-    const parts = String(fullName).trim().split(/\s+/).filter(Boolean)
     const saved = appUser?.saved_contact
+    const { firstName: metaFirst, lastName: metaLast } = splitProfileFirstLast(
+      appUser?.name || authUser.user_metadata?.full_name,
+      saved,
+      authUser.email ?? null,
+    )
     setAppState((previous) => ({
       ...previous,
       info: {
         ...previous.info,
         email: previous.info.email || authUser.email || '',
-        firstName: previous.info.firstName || parts[0] || saved?.firstName?.trim() || '',
-        lastName: previous.info.lastName || parts.slice(1).join(' ') || saved?.lastName?.trim() || '',
+        firstName: previous.info.firstName || metaFirst,
+        lastName: previous.info.lastName || metaLast,
         phone: previous.info.phone || saved?.phone?.trim() || '',
         address: previous.info.address || saved?.address?.trim() || '',
         city: previous.info.city || saved?.city?.trim() || '',
@@ -525,9 +544,13 @@ function AppRoutes() {
     navigate('/')
   }
 
-  async function persistProfileContact(info: AppInfo) {
+  type PersistContactResult =
+    | { ok: true; warning?: string }
+    | { ok: false; message: string }
+
+  async function persistProfileContact(info: AppInfo): Promise<PersistContactResult> {
     if (!authUser || !isSupabaseConfigured) {
-      return
+      return { ok: true }
     }
 
     const supabase = requireSupabase()
@@ -544,22 +567,43 @@ function AppRoutes() {
       dob: info.dob.trim(),
     }
 
-    const { error } = await supabase.from('profiles').update({ saved_contact }).eq('id', authUser.id)
+    const full_name = [info.firstName, info.lastName].map((s) => s.trim()).filter(Boolean).join(' ') || null
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ saved_contact, ...(full_name ? { full_name } : {}) })
+      .eq('id', authUser.id)
 
     if (error) {
       captureClientError(error, { flow: 'persist_profile_contact' })
-      return
+      const raw = 'message' in error && typeof error.message === 'string' ? error.message : ''
+      const message =
+        /saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')
+          ? 'Could not save your contact details. Ask your admin to apply the latest Supabase migration (saved_contact on profiles) and confirm Row Level Security allows profile updates.'
+          : `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
+      return { ok: false, message }
     }
 
     try {
       await refreshAppUser(authUser)
     } catch (error) {
       captureClientError(error, { flow: 'refresh_after_profile_save' })
+      return {
+        ok: true,
+        warning:
+          'Your details were saved, but the app could not refresh your account. If anything looks wrong, reload the page.',
+      }
     }
+    return { ok: true }
   }
 
   async function handleAdvanceFromPersonalStep() {
-    await persistProfileContact(appState.info)
+    const result = await persistProfileContact(appState.info)
+    if (!result.ok) {
+      setBillingMessage(result.message)
+      return
+    }
+    setBillingMessage(result.warning ?? '')
     setAppState((previous) => ({ ...previous, step: 1 }))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -568,11 +612,14 @@ function AppRoutes() {
     const nextState = createInitialState()
 
     if (authUser) {
-      const fullName = appUser?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || ''
-      const parts = String(fullName).trim().split(/\s+/).filter(Boolean)
       const saved = appUser?.saved_contact
-      nextState.info.firstName = parts[0] || saved?.firstName?.trim() || ''
-      nextState.info.lastName = parts.slice(1).join(' ') || saved?.lastName?.trim() || ''
+      const { firstName, lastName } = splitProfileFirstLast(
+        appUser?.name || authUser.user_metadata?.full_name,
+        saved,
+        authUser.email ?? null,
+      )
+      nextState.info.firstName = firstName || saved?.firstName?.trim() || ''
+      nextState.info.lastName = lastName || saved?.lastName?.trim() || ''
       nextState.info.email = authUser.email || ''
       nextState.info.phone = saved?.phone?.trim() || ''
       nextState.info.address = saved?.address?.trim() || ''
@@ -596,6 +643,19 @@ function AppRoutes() {
     const infoError = validateAppInfo(appState.info)
     if (infoError) {
       setBillingMessage(infoError)
+      return
+    }
+
+    const addrErr = validateMailingAddressForLetters(appState.info)
+    if (addrErr) {
+      setBillingMessage(addrErr)
+      return
+    }
+
+    if (!hasLetterGenerationSource(appState.files, appState.issues, appState.issueDetails)) {
+      setBillingMessage(
+        'Upload at least one credit report PDF in Step 4, or enter the creditor name for at least one selected issue in Step 3, so letters include real account information.',
+      )
       return
     }
 
@@ -642,6 +702,7 @@ function AppRoutes() {
         agencies: appState.agencies,
         files: appState.files,
         info: appState.info,
+        issueDetails: appState.issueDetails,
         issues: appState.issues,
         onEvent: (event) => {
           if (event.type === 'status') {
@@ -706,6 +767,7 @@ function AppRoutes() {
     const payload = {
       ai_summary: summary || null,
       bureau_targets: appState.agencies,
+      issue_account_details: appState.issueDetails,
       issue_categories: appState.issues,
       personal_info: appState.info,
       status: 'draft_ready',
@@ -717,7 +779,9 @@ function AppRoutes() {
     const inserted = await supabase
       .from('disputes')
       .insert(payload)
-      .select('id, user_id, title, status, bureau_targets, issue_categories, personal_info, ai_summary, created_at, updated_at')
+      .select(
+        'id, user_id, title, status, bureau_targets, issue_categories, issue_account_details, personal_info, ai_summary, created_at, updated_at',
+      )
       .single()
 
     if (inserted.error || !inserted.data) {
@@ -848,6 +912,7 @@ function AppRoutes() {
       tab: 'generator',
       currentDisputeId: detail.id,
       disputeTitle: detail.title || '',
+      issueDetails: detail.issue_account_details && typeof detail.issue_account_details === 'object' ? detail.issue_account_details : {},
       step: 4,
       analyzing: false,
       aiSummary: detail.ai_summary || '',
@@ -890,6 +955,15 @@ function AppRoutes() {
     anchor.click()
     document.body.removeChild(anchor)
     URL.revokeObjectURL(url)
+  }
+
+  function downloadLetterPdfExport(letterText: string, fileNameBase: string) {
+    try {
+      downloadLetterAsPdf(letterText, fileNameBase)
+    } catch (error) {
+      captureClientError(error, { flow: 'download_pdf' })
+      setBillingMessage('Could not create the PDF. Use Download .txt instead.')
+    }
   }
 
   if (sessionLoading && routeRequiresSessionGate(location.pathname)) {
@@ -1206,11 +1280,29 @@ function AppRoutes() {
                 onDownloadAll={() => {
                   appState.letters.forEach((letter, index) => {
                     window.setTimeout(() => {
-                      downloadLetter(letter.text, buildLetterFileName(letter))
-                    }, index * 150)
+                      downloadLetterPdfExport(letter.text, buildLetterFileName(letter))
+                    }, index * 200)
                   })
                 }}
                 onDownloadLetter={(letter) => downloadLetter(letter.text, buildLetterFileName(letter))}
+                onDownloadLetterPdf={(letter) => downloadLetterPdfExport(letter.text, buildLetterFileName(letter))}
+                onIssueDetailChange={(issue, patch) =>
+                  setAppState((previous) => ({
+                    ...previous,
+                    issueDetails: {
+                      ...previous.issueDetails,
+                      [issue]: {
+                        accountLast4: '',
+                        amountOrBalance: '',
+                        creditorName: '',
+                        disputeReason: '',
+                        reportedDate: '',
+                        ...previous.issueDetails[issue],
+                        ...patch,
+                      },
+                    },
+                  }))
+                }
                 onFieldChange={(field, value) =>
                   setAppState((previous) => ({
                     ...previous,
@@ -1232,7 +1324,17 @@ function AppRoutes() {
                 onSetFileReportBureau={(fileId, bureau) => void setFileReportBureau(fileId, bureau)}
                 onSetOpenLetter={(id) => setAppState((previous) => ({ ...previous, openLetter: id }))}
                 onSetSelectedAgencies={(agencies) => setAppState((previous) => ({ ...previous, agencies }))}
-                onSetSelectedIssues={(issues) => setAppState((previous) => ({ ...previous, issues }))}
+                onSetSelectedIssues={(issues) =>
+                  setAppState((previous) => {
+                    const issueDetails = { ...previous.issueDetails }
+                    for (const key of Object.keys(issueDetails)) {
+                      if (!issues.includes(key as IssueId)) {
+                        delete issueDetails[key as IssueId]
+                      }
+                    }
+                    return { ...previous, issueDetails, issues }
+                  })
+                }
                 onShowHome={() => navigate('/')}
                 onSignOut={() => void signOutUser()}
                 onStartAnalysis={() => void startAnalysis()}

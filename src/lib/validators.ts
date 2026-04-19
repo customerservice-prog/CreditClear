@@ -1,4 +1,4 @@
-import type { AppInfo } from '../types'
+import type { AppInfo, IssueDetailsMap, IssueId } from '../types'
 
 export function isValidEmail(value: string) {
   return /\S+@\S+\.\S+/.test(value)
@@ -40,6 +40,26 @@ export function validateAppInfo(info: AppInfo) {
   }
 
   return null
+}
+
+/** Call before generating letters — matches server /api generation rules. */
+export function validateMailingAddressForLetters(info: AppInfo) {
+  if (!info.address.trim() || !info.city.trim() || !info.state.trim() || !info.zip.trim()) {
+    return 'Enter your full mailing address (street, city, state, ZIP) on Step 1 — bureaus need it on dispute letters.'
+  }
+  return null
+}
+
+export function hasLetterGenerationSource(files: { id?: string }[], issues: IssueId[], issueDetails: IssueDetailsMap) {
+  if (files.some((f) => Boolean(f.id))) {
+    return true
+  }
+  for (const issue of issues) {
+    if (issueDetails[issue]?.creditorName?.trim()) {
+      return true
+    }
+  }
+  return false
 }
 
 export function validateUpload(file: File, maxBytes = 10 * 1024 * 1024) {

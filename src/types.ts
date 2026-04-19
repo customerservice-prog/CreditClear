@@ -81,6 +81,17 @@ export interface AppInfo {
   dob: string
 }
 
+/** Per selected issue: tradeline details that populate dispute letters. */
+export interface IssueAccountDetail {
+  creditorName: string
+  accountLast4: string
+  amountOrBalance: string
+  reportedDate: string
+  disputeReason: string
+}
+
+export type IssueDetailsMap = Partial<Record<IssueId, IssueAccountDetail>>
+
 export interface AppState {
   tab: AppTab
   step: number
@@ -93,6 +104,8 @@ export interface AppState {
   disputeTitle: string
   agencies: AgencyId[]
   issues: IssueId[]
+  /** Account-level details entered in Step 3 (per issue). */
+  issueDetails: IssueDetailsMap
   files: CreditFile[]
   letters: Letter[]
   currentDisputeId?: string | null
@@ -149,6 +162,8 @@ export interface DisputeRecord {
   status: string
   bureau_targets: string[]
   issue_categories: string[]
+  /** Saved Step 3 issue account rows (optional). */
+  issue_account_details?: IssueDetailsMap | null
   personal_info: AppInfo
   ai_summary: string | null
   created_at: string

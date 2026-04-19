@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AppShell } from '../components/layout/AppShell'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
 import { requireSupabase } from '../lib/supabaseClient'
-import { listUploadsForCurrentUser } from '../lib/uploadQueries'
+import { deleteUploadForCurrentUser, listUploadsForCurrentUser } from '../lib/uploadQueries'
 import type { AppTab, UploadRecord } from '../types'
 
 const BUCKET = 'private-uploads'
@@ -30,6 +30,7 @@ export function CreditReportsPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const supabase = requireSupabase()
@@ -58,6 +59,26 @@ export function CreditReportsPage({
       return
     }
     window.open(signed.data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  async function deleteUpload(upload: UploadRecord) {
+    if (
+      !window.confirm(
+        `Permanently delete “${upload.file_name}” from CreditClear? The file will be removed from your account storage.`,
+      )
+    ) {
+      return
+    }
+    setActionError('')
+    setDeletingId(upload.id)
+    const supabase = requireSupabase()
+    const { error: delErr } = await deleteUploadForCurrentUser(supabase, upload)
+    setDeletingId(null)
+    if (delErr) {
+      setActionError('Could not delete that file. Try again or contact support if this keeps happening.')
+      return
+    }
+    await load()
   }
 
   async function downloadSigned(upload: UploadRecord) {
@@ -138,6 +159,14 @@ export function CreditReportsPage({
                     </button>
                     <button className="btn btn-gold" onClick={() => void downloadSigned(upload)} type="button">
                       Download
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      disabled={deletingId === upload.id}
+                      onClick={() => void deleteUpload(upload)}
+                      type="button"
+                    >
+                      {deletingId === upload.id ? 'Deleting…' : 'Delete'}
                     </button>
                   </div>
                 </div>

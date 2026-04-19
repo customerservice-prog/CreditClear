@@ -68,5 +68,6 @@ export function createInitialState(): AppState {
     files: [],
     letters: [],
     disputeTitle: '',
+    issueDetails: {},
   }
 }

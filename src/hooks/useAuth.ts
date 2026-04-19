@@ -2,6 +2,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { bootstrapUserRequest, createAccountRequest } from '../lib/apiClient'
 import { captureClientError } from '../lib/monitoring'
+import { isUsableFullName } from '../lib/profileName'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
 
@@ -48,13 +49,22 @@ export function useAuth() {
     }
 
     const supabase = requireSupabase()
+    const email = target.email || ''
+    const existingProfile = await supabase.from('profiles').select('full_name').eq('id', target.id).maybeSingle()
+    const metaName = target.user_metadata?.full_name?.trim()
+    const existingName = existingProfile.data?.full_name?.trim()
+    const full_name =
+      (metaName && isUsableFullName(metaName, email) ? metaName : null) ??
+      (existingName && isUsableFullName(existingName, email) ? existingName : null) ??
+      null
+
     const profileResult = await supabase
       .from('profiles')
       .upsert(
         {
           id: target.id,
-          email: target.email || '',
-          full_name: target.user_metadata?.full_name || null,
+          email,
+          full_name,
         },
         { onConflict: 'id' },
       )

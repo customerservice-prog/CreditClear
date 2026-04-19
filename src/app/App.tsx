@@ -8,7 +8,7 @@ function AppWithContexts() {
   const auth = useAuthContext()
 
   return (
-    <SubscriptionProvider user={auth.appUser}>
+    <SubscriptionProvider sessionEmail={auth.authUser?.email ?? null} user={auth.appUser}>
       <AppRoutes />
     </SubscriptionProvider>
   )

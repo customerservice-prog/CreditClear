@@ -50,6 +50,8 @@ describe('normalizeGenerationRequest', () => {
         email: 'USER@example.com',
         firstName: 'Jane',
         lastName: 'Doe',
+        state: 'NY',
+        zip: '10001',
       },
       issues: ['late', 'dup'],
     })
@@ -88,5 +90,45 @@ describe('normalizeGenerationRequest', () => {
         issues: ['late'],
       }),
     ).toThrow(/invalid/)
+  })
+
+  it('requires address fields and letter source when no uploads', () => {
+    expect(() =>
+      normalizeGenerationRequest({
+        agencies: ['equifax'],
+        files: [],
+        info: {
+          address: '1 Main',
+          city: 'X',
+          email: 'jane@example.com',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          state: 'NY',
+          zip: '10001',
+        },
+        issues: ['late'],
+      }),
+    ).toThrow(/Upload at least one credit report PDF/)
+
+    const withIssue = normalizeGenerationRequest({
+      agencies: ['equifax'],
+      files: [],
+      info: {
+        address: '1 Main',
+        city: 'X',
+        email: 'jane@example.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        state: 'NY',
+        zip: '10001',
+      },
+      issueDetails: {
+        late: {
+          creditorName: 'Test Bank',
+        },
+      },
+      issues: ['late'],
+    })
+    expect(withIssue.issueDetails.late.creditorName).toBe('Test Bank')
   })
 })

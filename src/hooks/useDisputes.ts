@@ -22,7 +22,7 @@ export function useDisputes(userId?: string) {
     const disputesResult = await supabase
       .from('disputes')
       .select(
-        'id, user_id, title, status, bureau_targets, issue_categories, personal_info, ai_summary, created_at, updated_at, letters(count)',
+        'id, user_id, title, status, bureau_targets, issue_categories, issue_account_details, personal_info, ai_summary, created_at, updated_at',
       )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -35,13 +35,21 @@ export function useDisputes(userId?: string) {
     }
 
     const raw = disputesResult.data ?? []
-    const nextDisputes: DisputeRecord[] = raw.map((row: Record<string, unknown>) => {
-      const nested = row.letters as { count?: number }[] | undefined
-      const countRaw = Array.isArray(nested) && nested[0] && typeof nested[0].count !== 'undefined' ? nested[0].count : 0
-      const letter_count = typeof countRaw === 'number' ? countRaw : Number(countRaw) || 0
-      const rest = { ...row }
-      delete rest.letters
-      return { ...rest, letter_count } as DisputeRecord
+    const ids = raw.map((row) => (row as { id: string }).id)
+    const countMap = new Map<string, number>()
+    if (ids.length) {
+      const letterRows = await supabase.from('letters').select('dispute_id').in('dispute_id', ids)
+      if (!letterRows.error && letterRows.data) {
+        for (const row of letterRows.data) {
+          const id = row.dispute_id as string
+          countMap.set(id, (countMap.get(id) ?? 0) + 1)
+        }
+      }
+    }
+
+    const nextDisputes: DisputeRecord[] = raw.map((row) => {
+      const id = (row as { id: string }).id
+      return { ...(row as DisputeRecord), letter_count: countMap.get(id) ?? 0 }
     })
     setDisputes(nextDisputes)
     return nextDisputes
@@ -52,7 +60,9 @@ export function useDisputes(userId?: string) {
     const [disputeResult, lettersResult, uploadsResult] = await Promise.all([
       supabase
         .from('disputes')
-        .select('id, user_id, title, status, bureau_targets, issue_categories, personal_info, ai_summary, created_at, updated_at')
+        .select(
+          'id, user_id, title, status, bureau_targets, issue_categories, issue_account_details, personal_info, ai_summary, created_at, updated_at',
+        )
         .eq('id', disputeId)
         .single(),
       supabase

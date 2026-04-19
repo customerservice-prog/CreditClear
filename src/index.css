@@ -274,6 +274,13 @@ a{color:inherit}
 .ic.sel .il{color:var(--gold2)}
 .sa-btn{background:transparent;border:1px solid var(--border);color:var(--gold);padding:7px 16px;border-radius:8px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;margin-bottom:16px}
 .sa-btn:hover{background:var(--gold-l)}
+.issue-acc{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.issue-acc-row{border:1px solid rgba(255,255,255,.06);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
+.issue-acc-row.open{border-color:rgba(201,168,76,.28)}
+.ic.ic-block{width:100%;flex-direction:column;align-items:flex-start;text-align:left;border-radius:0;border:none}
+.issue-acc-row .ic.ic-block{border-radius:0}
+.ic-hint{display:block;width:100%;font-size:10px;color:var(--txt3);margin-top:8px;line-height:1.45;font-weight:400}
+.issue-acc-row .idetail{padding:14px 16px 18px;border-top:1px solid rgba(255,255,255,.06)}
 
 .uz{border:2px dashed rgba(201,168,76,.3);border-radius:20px;padding:50px 28px;text-align:center;cursor:pointer;transition:all .3s;background:rgba(201,168,76,.02);display:block}
 .uz:hover,.uz.drag{border-color:var(--gold);background:var(--gold-l)}

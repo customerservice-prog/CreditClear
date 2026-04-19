@@ -42,6 +42,19 @@ export function normalizeGenerationRequest(body) {
     throw new ApiError(400, 'Your personal information is incomplete.')
   }
 
+  const address = sanitizeText(info.address, { maxLength: 160 })
+  const city = sanitizeText(info.city, { maxLength: 80 })
+  const state = sanitizeText(info.state, { maxLength: 40 })
+  const zip = sanitizeText(info.zip, { maxLength: 16 })
+
+  if (!address || !city || !state || !zip) {
+    throw new ApiError(400, 'Street address, city, state, and ZIP are required on your dispute letters.')
+  }
+
+  const issueDetails = sanitizeIssueDetailsMap(body, issues)
+
+  assertHasLetterSource(fileIds, issueDetails, issues)
+
   return {
     agencies,
     fileIds,
@@ -50,13 +63,54 @@ export function normalizeGenerationRequest(body) {
       lastName,
       email,
       phone: sanitizeText(info.phone, { maxLength: 32 }),
-      address: sanitizeText(info.address, { maxLength: 160 }),
-      city: sanitizeText(info.city, { maxLength: 80 }),
-      state: sanitizeText(info.state, { maxLength: 40 }),
-      zip: sanitizeText(info.zip, { maxLength: 16 }),
+      address,
+      city,
+      state,
+      zip,
       dob: sanitizeText(info.dob, { maxLength: 20 }),
       ssn: sanitizeText(info.ssn, { maxLength: 4 }),
     },
+    issueDetails,
     issues,
   }
+}
+
+function sanitizeIssueDetailsMap(body, issues) {
+  const raw = body.issueDetails
+  const out = {}
+  if (!raw || typeof raw !== 'object') {
+    return out
+  }
+  for (const issue of issues) {
+    const row = raw[issue]
+    if (!row || typeof row !== 'object') {
+      continue
+    }
+    out[issue] = {
+      accountLast4: sanitizeText(row.accountLast4, { maxLength: 32 }),
+      amountOrBalance: sanitizeText(row.amountOrBalance, { maxLength: 80 }),
+      creditorName: sanitizeText(row.creditorName, { maxLength: 200 }),
+      disputeReason: sanitizeText(row.disputeReason, { maxLength: 2000, preserveNewlines: true }),
+      reportedDate: sanitizeText(row.reportedDate, { maxLength: 80 }),
+    }
+  }
+  return out
+}
+
+function assertHasLetterSource(fileIds, issueDetails, issues) {
+  if (fileIds.length > 0) {
+    return
+  }
+
+  for (const issue of issues) {
+    const row = issueDetails[issue]
+    if (row?.creditorName?.trim()) {
+      return
+    }
+  }
+
+  throw new ApiError(
+    400,
+    'Upload at least one credit report PDF (Step 4), or enter the creditor / account details for at least one selected issue (Step 3), so dispute letters are not blank templates.',
+  )
 }

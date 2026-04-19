@@ -40,45 +40,58 @@ const ISSUES = {
   med: { label: 'Medical Debt', icon: '🏥' },
 }
 
-/** Issue-specific FCRA-oriented dispute language (not legal advice; user must verify). */
+/** Issue-specific legal hooks (not legal advice; user must verify). Each issue uses different emphasis. */
 const ISSUE_DISPUTE_PARAGRAPH = {
   late: (agencyName) =>
-    `Under the Fair Credit Reporting Act (FCRA), I am disputing reported late payment history on my ${agencyName} file for the account(s) identified above. If any late-payment notation cannot be fully verified as accurate, complete, or belonging to this account, I request that you delete or correct it after a reasonable reinvestigation and provide me with an updated copy of my credit file.`,
+    `I dispute the reported late-payment history associated with the account identified in this letter. Furnishers must report accurate payment history under 15 U.S.C. § 1681s-2. If any late payment notation on my ${agencyName} file cannot be verified as 100% accurate and complete for this tradeline, I request deletion or correction following a reasonable reinvestigation under 15 U.S.C. § 1681i.`,
   coll: (agencyName) =>
-    `Under the FCRA, I dispute the accuracy and/or completeness of the collection account information reported on my ${agencyName} credit file as described above. If all aspects cannot be verified with the furnisher, I request deletion or correction and an updated disclosure.`,
+    `I dispute the reported collection tradeline(s) on my ${agencyName} file. If this collection cannot be validated with complete and accurate information (including the right to validation under the Fair Debt Collection Practices Act, 15 U.S.C. § 1692g, where applicable), I request deletion or correction and disclosure of the outcome of your reinvestigation.`,
   inq: (agencyName) =>
-    `I am disputing one or more hard inquiries listed on my ${agencyName} file as referenced above. If any inquiry was not authorized by me or is otherwise reported incorrectly, I request deletion after reinvestigation.`,
+    `I dispute one or more hard inquiries on my ${agencyName} file. Permissible purpose and authorization for each inquiry must be supportable. For any inquiry I did not authorize or that is otherwise reported incorrectly, I request deletion after reinvestigation under the FCRA.`,
   id: (agencyName) =>
-    `I am disputing identity-related information on my ${agencyName} report (names, addresses, Social Security details, or merged files) as outlined above. I request a thorough reinvestigation and correction of any inaccurate or mixed file data.`,
+    `I dispute identity and header information on my ${agencyName} file (names, aliases, addresses, merged files, or mixed records) that may confuse my creditworthiness with another person’s. I request reinvestigation and correction of all inaccurate or incomplete identity data.`,
   dup: (agencyName) =>
-    `I dispute duplicate tradelines or repeated accounts shown on my ${agencyName} file. If the same obligation appears more than once in error, I request consolidation or removal of the duplicate reporting after verification.`,
+    `I dispute duplicate tradelines or multiple listings of the same obligation on my ${agencyName} file. Duplicate reporting can distort utilization and payment history; I request consolidation or removal of erroneous duplicates after verification with the furnisher(s).`,
   bal: (agencyName) =>
-    `I dispute balance and credit limit information reported on my ${agencyName} file as identified above. I request reinvestigation and correction where balances, limits, or utilization cannot be verified as accurate.`,
+    `I dispute reported balances, credit limits, and high-balance figures on my ${agencyName} file. Inaccurate balances or limits affect scores and disclosures; I request reinvestigation and correction wherever amounts cannot be verified as complete and accurate.`,
   bk: (agencyName) =>
-    `I dispute bankruptcy-related public record or tradeline information on my ${agencyName} file as described above. I request verification and correction of any detail that is incorrect, obsolete, or cannot be confirmed.`,
+    `I dispute bankruptcy public-record or tradeline information on my ${agencyName} file (including chapter, filing/discharge dates, liability amounts, or status). I request verification and correction of any detail that is obsolete, incomplete, or cannot be confirmed from court or other reliable records.`,
   repo: (agencyName) =>
-    `I dispute the reporting of repossession or voluntary surrender information on my ${agencyName} file for the account(s) above. I request reinvestigation and correction if any detail is inaccurate or unverifiable.`,
+    `I dispute repossession or voluntary-surrender reporting on my ${agencyName} file. I request reinvestigation; if any status, balance, or date is unverifiable or reported in error, I request deletion or correction.`,
   jud: (agencyName) =>
-    `I dispute judgment, lien, or similar public record information on my ${agencyName} file. I request reinvestigation and correction if any filing amount, date, or status is reported incorrectly or cannot be verified.`,
+    `I dispute judgment or lien public-record data on my ${agencyName} file. I request reinvestigation and correction if any amount, filing date, satisfaction, or status is reported incorrectly or cannot be verified.`,
   cl: (agencyName) =>
-    `I dispute how closed account(s) are reported on my ${agencyName} file (e.g., closed status, payment history, or pay-off information). I request correction or removal of any information that cannot be verified as accurate and complete.`,
+    `I dispute how closed account(s) are characterized on my ${agencyName} file (closed date, payment history, charge-off/payoff coding). I request correction of any closed-account information that cannot be fully verified.`,
   sl: (agencyName) =>
-    `I dispute student loan tradeline(s) as reported on my ${agencyName} file (balances, status, or duplicate servicer lines). I request reinvestigation and correction after verification with the furnisher.`,
+    `I dispute student-loan tradeline(s) on my ${agencyName} file (balance, status, duplicates between servicers). I request reinvestigation and correction after communication with the loan holder/servicer as needed.`,
   med: (agencyName) =>
-    `I dispute medical debt reporting on my ${agencyName} file as identified above, including whether amounts, dates, and collection status are reported correctly and consistently with applicable rules. I request correction or deletion of unverifiable items.`,
+    `I dispute medical-debt reporting on my ${agencyName} file, including balance, provider, insurance status, and collection placement. I request correction or deletion of items that cannot be verified in accordance with consumer-reporting standards.`,
 }
 
-function manualAccountPromptLines(agencyName) {
-  return [
-    `DETAILED TRADELINE INFORMATION — copy from your official ${agencyName} credit report (paper or PDF):`,
-    '• Creditor / subscriber name as shown: ________________________________________________',
-    '• Account number (full or last digits as shown): ________________________________________________',
-    '• Date opened / reported / status date (if shown): ________________________________________________',
-    '• Balance, credit limit, or high balance shown: ________________________________________________',
-    '• Payment history summary (e.g. 30/60/90-day late — note exact months/years shown): ________________________________________________',
-    '• Briefly explain what is wrong, incomplete, or what you believe is unverifiable: ________________________________________________',
-    '',
+function letterDateFormatted() {
+  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+function buildAccountSpecificParagraph(issueMeta, issueDetail) {
+  if (!issueDetail?.creditorName?.trim()) {
+    return ''
+  }
+  const bits = [
+    `The account at issue concerns "${issueDetail.creditorName.trim()}" as reported on my file for the dispute category "${issueMeta.label}".`,
   ]
+  if (issueDetail.accountLast4?.trim()) {
+    bits.push(`Account reference (as reported / last digits): ${issueDetail.accountLast4.trim()}.`)
+  }
+  if (issueDetail.amountOrBalance?.trim()) {
+    bits.push(`Balance or amount shown: ${issueDetail.amountOrBalance.trim()}.`)
+  }
+  if (issueDetail.reportedDate?.trim()) {
+    bits.push(`Relevant date or status period: ${issueDetail.reportedDate.trim()}.`)
+  }
+  if (issueDetail.disputeReason?.trim()) {
+    bits.push(`Summary of my position: ${issueDetail.disputeReason.trim()}`)
+  }
+  return bits.join(' ')
 }
 
 function uploadsForAgency(resolvedUploads, agency) {
@@ -92,88 +105,101 @@ function buildLetterSections({
   agencyName,
   bureauMailLines,
   disputePara,
-  issueMeta,
-  info,
-  forBureau,
-  resolvedUploads,
   extracted,
+  forBureau,
+  info,
+  issueDetail,
+  issueMeta,
 }) {
   const fullName = `${info.firstName || ''} ${info.lastName || ''}`.trim() || 'Consumer'
-  const addrLine = [info.address, [info.city, info.state].filter(Boolean).join(', '), info.zip]
-    .filter(Boolean)
-    .join('\n')
-  const anyUploads = resolvedUploads.length > 0
+  const street = (info.address || '').trim()
+  const cityState = [info.city, info.state].filter(Boolean).join(', ').trim()
+  const zip = (info.zip || '').trim()
+  const cityLine = [cityState, zip].filter(Boolean).join(' ').trim()
+
   const bureauLines =
-    bureauMailLines?.length > 0 ? bureauMailLines : [agencyName, 'Confirm current dispute address on the bureau website.']
+    bureauMailLines?.length > 0 ? bureauMailLines : [agencyName, 'Confirm the current mail-in dispute address on the bureau website.']
+
+  const accountSpecific = buildAccountSpecificParagraph(issueMeta, issueDetail)
+  const extractedSnippet = String(extracted?.text || '').trim()
+  const hasExtract = extractedSnippet.length > 0
 
   /** @type {string[]} */
   const lines = [
+    letterDateFormatted(),
+    '',
     fullName,
-    addrLine,
+    street,
+    cityLine,
+    '',
+    info.phone?.trim() ? `Phone: ${info.phone.trim()}` : '',
+    info.email?.trim() ? `Email: ${info.email.trim()}` : '',
     '',
     ...bureauLines,
-    'Consumer dispute correspondence',
     '',
-    `Re: FCRA dispute — ${issueMeta.label}`,
+    `Re: Fair Credit Reporting Act dispute — ${issueMeta.label}`,
     '',
     'Dear Sir or Madam,',
     '',
+    'For verification of my identity (please match to my credit file):',
+    `- Full name: ${fullName}`,
   ]
+
+  if (info.dob?.trim()) {
+    lines.push(`- Date of birth: ${info.dob.trim()}`)
+  }
+  if (info.ssn?.trim()) {
+    lines.push(`- Social Security number (last four digits only): ${info.ssn.trim()}`)
+  }
+  lines.push(`- Current mailing address: ${[street, cityLine].filter(Boolean).join(', ')}`)
+  lines.push('', 'I am requesting an investigation under 15 U.S.C. § 1681i.', '')
 
   if (forBureau.length > 0) {
     lines.push(
-      `The following uploaded file(s) are intended to correspond to my ${agencyName} credit report: ${forBureau.map((u) => u.file_name).join('; ')}.`,
-      '',
-    )
-  } else if (anyUploads) {
-    lines.push(
-      `I have uploaded credit report file(s) in this session, but none are labeled for ${agencyName} in CreditClear. Please use only data from my official ${agencyName} report; consider relabeling files in the app or uploading the correct ${agencyName} PDF, then regenerating this draft for fuller automation.`,
-      '',
-    )
-  } else {
-    lines.push(
-      `No credit report file was uploaded for this session. The numbered prompts below must be completed using your official ${agencyName} report (download from ${agencyName} or your tri-merge source).`,
+      `Attached or referenced materials include credit-report file(s) for review: ${forBureau.map((u) => u.file_name).join('; ')}.`,
       '',
     )
   }
 
-  if (extracted.text?.trim()) {
+  if (accountSpecific) {
+    lines.push(accountSpecific, '')
+  }
+
+  if (hasExtract) {
     lines.push(
-      'TEXT EXTRACTED FROM YOUR UPLOADED PDF(S) FOR THIS BUREAU (machine-read; verify every character against your own copy before mailing or filing):',
+      'The following excerpt was extracted from my uploaded credit-report PDF for your bureau (machine-read text — I have reviewed it against my copy; please verify independently):',
       '',
-      extracted.text,
-      '',
-      'Using the excerpt above as reference, identify each tradeline you dispute. I have summarized my position in the following paragraph:',
-      '',
-      disputePara,
+      extractedSnippet.slice(0, 12000),
       '',
     )
-  } else {
-    if (extracted.hadImageOnly && extracted.pdfFilesTried === 0 && forBureau.length > 0) {
-      lines.push(
-        'Your upload appears to be an image or screenshot. CreditClear reads text from bureau PDF downloads automatically. For best results, upload the official PDF from the bureau website, then regenerate; or complete the prompts below manually from your report printout.',
-        '',
-      )
-    }
-    lines.push(disputePara, '')
-    if (!extracted.text?.trim()) {
-      lines.push(...manualAccountPromptLines(agencyName))
-    }
+  }
+
+  lines.push(disputePara, '')
+
+  if (!accountSpecific && !hasExtract) {
+    lines.push(
+      `I dispute the accuracy or completeness of reported information for this category (${issueMeta.label}) on my ${agencyName} consumer report and request your reinvestigation.`,
+      '',
+    )
   }
 
   lines.push(
-    'Please complete a reasonable reinvestigation under the Fair Credit Reporting Act, including your obligations under 15 U.S.C. § 1681i. If any disputed information cannot be verified as accurate and complete, please delete or correct it and provide me with an updated copy of my credit file as required by law.',
+    'Please complete a reasonable reinvestigation under the Fair Credit Reporting Act. If any disputed item cannot be verified as accurate and complete, delete or correct it and provide me the results and an updated report disclosure as required by law.',
     '',
-    'Please find enclosed/attached copies of identifying information and any supporting documentation referenced above. I am keeping a copy of this dispute for my records.',
+    'I have enclosed or attached copies of identifying documents as referenced above. I am keeping a copy of this dispute.',
     '',
-    'Sincerely,',
+    'Respectfully,',
+    '',
     fullName,
+    street,
+    cityLine,
   )
-  if (info.email) {
-    lines.push(`Email: ${info.email}`)
+
+  if (info.phone?.trim()) {
+    lines.push(`Phone: ${info.phone.trim()}`)
   }
-  if (info.phone) {
-    lines.push(`Phone: ${info.phone}`)
+  if (info.email?.trim()) {
+    lines.push(`Email: ${info.email.trim()}`)
   }
 
   return lines
@@ -188,6 +214,7 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
     : Object.keys(AGENCIES)
   const issues = normalizedRequest.issues?.length ? normalizedRequest.issues : Object.keys(ISSUES)
   const info = normalizedRequest.info || {}
+  const issueDetails = normalizedRequest.issueDetails || {}
   const letterList = []
   const hasAiKey = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)
 
@@ -199,6 +226,7 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
 
     for (const issue of issues) {
       const issueMeta = ISSUES[issue] || { label: issue }
+      const issueDetail = issueDetails[issue] || null
       const fallbackTemplate = () =>
         ISSUE_DISPUTE_PARAGRAPH[issue]?.(agencyName) || ISSUE_DISPUTE_PARAGRAPH.late(agencyName)
 
@@ -209,6 +237,7 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
             fallback: fallbackTemplate,
             info,
             issue,
+            issueDetail,
             issueLabel: issueMeta.label,
           })
         : fallbackTemplate()
@@ -220,8 +249,8 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
         extracted,
         forBureau,
         info,
+        issueDetail,
         issueMeta,
-        resolvedUploads,
       })
 
       letterList.push({
