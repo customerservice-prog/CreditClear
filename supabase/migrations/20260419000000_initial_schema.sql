@@ -107,25 +107,25 @@ drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at
 before update on public.profiles
 for each row
-execute procedure public.set_updated_at();
+execute function public.set_updated_at();
 
 drop trigger if exists subscriptions_set_updated_at on public.subscriptions;
 create trigger subscriptions_set_updated_at
 before update on public.subscriptions
 for each row
-execute procedure public.set_updated_at();
+execute function public.set_updated_at();
 
 drop trigger if exists disputes_set_updated_at on public.disputes;
 create trigger disputes_set_updated_at
 before update on public.disputes
 for each row
-execute procedure public.set_updated_at();
+execute function public.set_updated_at();
 
 drop trigger if exists letters_set_updated_at on public.letters;
 create trigger letters_set_updated_at
 before update on public.letters
 for each row
-execute procedure public.set_updated_at();
+execute function public.set_updated_at();
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -174,7 +174,7 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row
-execute procedure public.handle_new_user();
+execute function public.handle_new_user();
 
 alter table public.profiles enable row level security;
 alter table public.subscriptions enable row level security;

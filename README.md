@@ -13,7 +13,7 @@ Production-oriented Vite + React SaaS app with:
 ## Security highlights
 
 - Secrets stay server-side; only `VITE_*` variables are exposed to the client.
-- Supabase RLS is required on every user-data table and the included `supabase/schema.sql` now locks `subscriptions` to server-managed writes only.
+- Supabase RLS is required on every user-data table and the included migration (`supabase/migrations/20260419000000_initial_schema.sql`) locks `subscriptions` to server-managed writes only.
 - The AI generation route verifies auth, checks subscription/trial access server-side, resolves uploads from DB records owned by the caller, and rate-limits repeated generation attempts.
 - Upload metadata is validated server-side and must stay inside the authenticated user's storage prefix.
 - Vercel response headers include CSP, `X-Frame-Options`, `nosniff`, HSTS, and related hardening headers.
@@ -66,7 +66,7 @@ ANTHROPIC_API_KEY=
 npm install
 ```
 
-2. Run `supabase/schema.sql` in the Supabase SQL editor.
+2. Run `supabase/migrations/20260419000000_initial_schema.sql` in the Supabase SQL editor (paste the file contents and execute), or from a machine with the DB password: `DATABASE_URL="postgresql://..." npm run db:apply`.
 
 3. In Supabase Auth:
 
@@ -210,13 +210,14 @@ api/
   stripe-webhook.js
   webhook.js
 supabase/
-  schema.sql
+  migrations/
+    20260419000000_initial_schema.sql
 ```
 
 ## Notes
 
 - `npm run dev` is enough for UI work, but `npm run dev:full` is the correct local command when testing `/api/*`, Stripe flows, or AI generation.
-- Re-run `supabase/schema.sql` after pulling the latest changes so the tightened RLS policies and new constraints are applied before launch.
+- Re-run the latest migration in `supabase/migrations/` (or `npm run db:apply` with `DATABASE_URL`) after pulling changes so RLS policies and constraints stay in sync before launch.
 - The client never receives `AI_API_KEY` / `ANTHROPIC_API_KEY`, `STRIPE_SECRET_KEY`, or the Supabase service-role key.
 - Trial access is controlled from `subscriptions.trial_ends_at`.
 - Stripe webhooks update the `subscriptions` table with paid status.
