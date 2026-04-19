@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { PricingCard } from '../components/PricingCard'
 import { AGENCIES, ANALYSIS_STEPS, ISSUES, PILLS, STEPS } from '../lib/constants'
+import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
+import { getPersonalFieldErrors } from '../lib/validators'
 import type { AgencyId, AppInfo, AppState, AppTab, DisputeRecord, IssueId, Letter, ReportBureauTag } from '../types'
 
 interface AppPageProps {
@@ -14,7 +17,9 @@ interface AppPageProps {
   disputesLoading: boolean
   onAddFiles: (files: FileList | null) => void
   onAppTabChange: (tab: AppTab) => void
+  onAdvanceFromPersonalStep: () => void
   onBeginCheckout: () => void
+  onDisputeTitleChange: (value: string) => void
   onDownloadAll: () => void
   onDownloadLetter: (letter: Letter) => void
   onFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
@@ -63,8 +68,10 @@ export function AppPage({
   disputes,
   disputesLoading,
   onAddFiles,
+  onAdvanceFromPersonalStep,
   onAppTabChange,
   onBeginCheckout,
+  onDisputeTitleChange,
   onDownloadAll,
   onDownloadLetter,
   onFieldChange,
@@ -83,11 +90,18 @@ export function AppPage({
   statusLabel,
   userDisplayName,
 }: AppPageProps) {
+  const [personalFieldErrors, setPersonalFieldErrors] = useState<Partial<Record<keyof AppInfo, string>>>({})
   const canContinueFromPersonal =
     Boolean(appState.info.firstName) &&
     Boolean(appState.info.lastName) &&
     Boolean(appState.info.email)
   const letterCount = appState.issues.length * (appState.agencies.length || 1)
+
+  useEffect(() => {
+    if (appState.step !== 0) {
+      setPersonalFieldErrors({})
+    }
+  }, [appState.step])
 
   return (
     <div className="page active" id="page-app">
@@ -169,9 +183,17 @@ export function AppPage({
             canContinueFromPersonal,
             letterCount,
             onAddFiles,
+            onAttemptContinuePersonal: () => {
+              const nextErrors = getPersonalFieldErrors(appState.info)
+              setPersonalFieldErrors(nextErrors)
+              if (Object.keys(nextErrors).length > 0) {
+                return
+              }
+              onAdvanceFromPersonalStep()
+            },
+            onDisputeTitleChange,
             onDownloadAll,
             onDownloadLetter,
-            onFieldChange,
             onGoToStep,
             onRemoveFile,
             onResetApp,
@@ -180,6 +202,15 @@ export function AppPage({
             onSetSelectedAgencies,
             onSetSelectedIssues,
             onStartAnalysis,
+            onPersonalFieldChange: (field, value) => {
+              setPersonalFieldErrors((previous) => {
+                const next = { ...previous }
+                delete next[field]
+                return next
+              })
+              onFieldChange(field, value)
+            },
+            personalFieldErrors,
             onUpdateLetterText,
           })
         )}
@@ -224,9 +255,11 @@ function DisputesPanel({
             <div className="history-card" key={record.id}>
               <div className="history-head">
                 <div>
-                  <div className="history-title">{new Date(record.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                  <div className="history-title">{record.title?.trim() || 'Untitled dispute'}</div>
                   <div className="history-sub">
-                    {(record.letters?.length || 0)} letters · {record.bureau_targets.join(', ')} · {record.issue_categories.length} issues
+                    {formatDateLabel(record.created_at)} · {disputeLetterCount(record)} letter
+                    {disputeLetterCount(record) === 1 ? '' : 's'} · {record.bureau_targets.map((b) => b).join(', ')} ·{' '}
+                    {record.issue_categories.length} issue{record.issue_categories.length === 1 ? '' : 's'}
                   </div>
                 </div>
                 <button className="btn btn-ghost" onClick={() => onLoadDispute(record)} type="button">
@@ -265,9 +298,10 @@ function renderGeneratorStep({
   canContinueFromPersonal,
   letterCount,
   onAddFiles,
+  onAttemptContinuePersonal,
+  onDisputeTitleChange,
   onDownloadAll,
   onDownloadLetter,
-  onFieldChange,
   onGoToStep,
   onRemoveFile,
   onResetApp,
@@ -276,15 +310,18 @@ function renderGeneratorStep({
   onSetSelectedAgencies,
   onSetSelectedIssues,
   onStartAnalysis,
+  onPersonalFieldChange,
+  personalFieldErrors,
   onUpdateLetterText,
 }: {
   appState: AppState
   canContinueFromPersonal: boolean
   letterCount: number
   onAddFiles: (files: FileList | null) => void
+  onAttemptContinuePersonal: () => void
+  onDisputeTitleChange: (value: string) => void
   onDownloadAll: () => void
   onDownloadLetter: (letter: Letter) => void
-  onFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
   onGoToStep: (step: number) => void
   onRemoveFile: (index: number) => void
   onResetApp: () => void
@@ -293,6 +330,8 @@ function renderGeneratorStep({
   onSetSelectedAgencies: (agencies: AgencyId[]) => void
   onSetSelectedIssues: (issues: IssueId[]) => void
   onStartAnalysis: () => void
+  onPersonalFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
+  personalFieldErrors: Partial<Record<keyof AppInfo, string>>
   onUpdateLetterText: (letterId: string, text: string) => void
 }) {
   if (appState.step < 4) {
@@ -314,8 +353,11 @@ function renderGeneratorStep({
           canContinueFromPersonal,
           letterCount,
           onAddFiles,
-          onFieldChange,
+          onAttemptContinuePersonal,
+          onDisputeTitleChange,
           onGoToStep,
+          onPersonalFieldChange,
+          personalFieldErrors,
           onRemoveFile,
           onSetFileReportBureau,
           onSetSelectedAgencies,
@@ -409,8 +451,11 @@ function renderWizardStep({
   canContinueFromPersonal,
   letterCount,
   onAddFiles,
-  onFieldChange,
+  onAttemptContinuePersonal,
+  onDisputeTitleChange,
   onGoToStep,
+  onPersonalFieldChange,
+  personalFieldErrors,
   onRemoveFile,
   onSetFileReportBureau,
   onSetSelectedAgencies,
@@ -421,8 +466,11 @@ function renderWizardStep({
   canContinueFromPersonal: boolean
   letterCount: number
   onAddFiles: (files: FileList | null) => void
-  onFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
+  onAttemptContinuePersonal: () => void
+  onDisputeTitleChange: (value: string) => void
   onGoToStep: (step: number) => void
+  onPersonalFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
+  personalFieldErrors: Partial<Record<keyof AppInfo, string>>
   onRemoveFile: (index: number) => void
   onSetFileReportBureau: (fileId: string, bureau: ReportBureauTag | null) => void
   onSetSelectedAgencies: (agencies: AgencyId[]) => void
@@ -435,24 +483,42 @@ function renderWizardStep({
         <div className="card-t">Personal Information</div>
         <div className="card-s">Used only to personalize your dispute letters. Never shared or sold.</div>
         <div className="fg">
+          <div className="f sp">
+            <label htmlFor="dispute-title">Name this dispute (optional)</label>
+            <input
+              id="dispute-title"
+              onChange={(event) => onDisputeTitleChange(event.target.value)}
+              placeholder="e.g., Experian — duplicate & collections"
+              type="text"
+              value={appState.disputeTitle}
+            />
+            <div className="card-s" style={{ marginBottom: 0, marginTop: 4, fontSize: 12 }}>
+              Shown in My Disputes so you can tell saved sessions apart. Leave blank for an automatic title from your selections.
+            </div>
+          </div>
           {infoFieldMap.map((field) => (
             <div className={`f${field.span ? ' sp' : ''}`} key={field.id}>
-              <label>{field.label}</label>
+              <label htmlFor={field.id}>{field.label}</label>
               <input
+                className={personalFieldErrors[field.field] ? 'input-err' : undefined}
                 id={field.id}
                 maxLength={field.maxLength}
-                onChange={(event) => onFieldChange(field.field, event.target.value)}
+                onChange={(event) => onPersonalFieldChange(field.field, event.target.value)}
                 placeholder={field.placeholder}
                 type={field.type ?? 'text'}
                 value={appState.info[field.field]}
               />
+              {personalFieldErrors[field.field] ? <div className="ferr">{personalFieldErrors[field.field]}</div> : null}
             </div>
           ))}
         </div>
-        <div className="btn-row">
-          <button className="btn btn-gold" disabled={!canContinueFromPersonal} onClick={() => onGoToStep(1)} type="button">
+        <div className="btn-row" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <button className="btn btn-gold" onClick={onAttemptContinuePersonal} type="button">
             Continue →
           </button>
+          {!canContinueFromPersonal ? (
+            <span className="btn-hint">Fill in first name, last name, and a valid email to continue.</span>
+          ) : null}
         </div>
       </div>
     )

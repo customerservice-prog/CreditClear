@@ -10,11 +10,19 @@ import {
   ALLOWED_ISSUES,
   sanitizeText,
 } from './_lib/validation.js'
+import { generateAiDisputeParagraph } from './_lib/ai-dispute-draft.js'
 
 const AGENCIES = {
   equifax: 'Equifax',
   experian: 'Experian',
   transunion: 'TransUnion',
+}
+
+/** Consumer reporting agency mail-only dispute channels (confirm at bureau site before mailing). */
+const BUREAU_MAILING = {
+  equifax: ['Equifax Information Services LLC', 'P.O. Box 740256', 'Atlanta, GA 30348'],
+  experian: ['Experian', 'P.O. Box 4500', 'Allen, TX 75013'],
+  transunion: ['TransUnion Consumer Solutions', 'P.O. Box 2000', 'Chester, PA 19022-2000'],
 }
 
 const ISSUES = {
@@ -81,9 +89,9 @@ function uploadsForAgency(resolvedUploads, agency) {
 }
 
 function buildLetterSections({
-  agency,
   agencyName,
-  issue,
+  bureauMailLines,
+  disputePara,
   issueMeta,
   info,
   forBureau,
@@ -95,17 +103,18 @@ function buildLetterSections({
     .filter(Boolean)
     .join('\n')
   const anyUploads = resolvedUploads.length > 0
-  const disputePara = ISSUE_DISPUTE_PARAGRAPH[issue]?.(agencyName) || ISSUE_DISPUTE_PARAGRAPH.late(agencyName)
+  const bureauLines =
+    bureauMailLines?.length > 0 ? bureauMailLines : [agencyName, 'Confirm current dispute address on the bureau website.']
 
   /** @type {string[]} */
   const lines = [
     fullName,
     addrLine,
     '',
-    agencyName,
+    ...bureauLines,
     'Consumer dispute correspondence',
     '',
-    `Re: Dispute — ${issueMeta.label}`,
+    `Re: FCRA dispute — ${issueMeta.label}`,
     '',
     'Dear Sir or Madam,',
     '',
@@ -153,9 +162,9 @@ function buildLetterSections({
   }
 
   lines.push(
-    'Please complete a reasonable reinvestigation under the FCRA. If any disputed information cannot be verified as accurate, please delete or correct it and mail or deliver to me an updated copy of my credit file.',
+    'Please complete a reasonable reinvestigation under the Fair Credit Reporting Act, including your obligations under 15 U.S.C. § 1681i. If any disputed information cannot be verified as accurate and complete, please delete or correct it and provide me with an updated copy of my credit file as required by law.',
     '',
-    'Please find enclosed/attached copies of identifying information and any supporting documentation. I am keeping a copy of this dispute for my records.',
+    'Please find enclosed/attached copies of identifying information and any supporting documentation referenced above. I am keeping a copy of this dispute for my records.',
     '',
     'Sincerely,',
     fullName,
@@ -173,28 +182,44 @@ function buildLetterSections({
     .replace(/\n{3,}/g, '\n\n')
 }
 
-function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
+async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
   const agencies = normalizedRequest.agencies?.length
     ? normalizedRequest.agencies
     : Object.keys(AGENCIES)
   const issues = normalizedRequest.issues?.length ? normalizedRequest.issues : Object.keys(ISSUES)
   const info = normalizedRequest.info || {}
   const letterList = []
+  const hasAiKey = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)
 
   for (const agency of agencies) {
     const forBureau = uploadsForAgency(resolvedUploads, agency)
     const extracted = extractedByAgency[agency] || { text: '', hadImageOnly: false, pdfFilesTried: 0 }
     const agencyName = AGENCIES[agency] || agency
+    const bureauMailLines = BUREAU_MAILING[agency] || []
 
     for (const issue of issues) {
       const issueMeta = ISSUES[issue] || { label: issue }
+      const fallbackTemplate = () =>
+        ISSUE_DISPUTE_PARAGRAPH[issue]?.(agencyName) || ISSUE_DISPUTE_PARAGRAPH.late(agencyName)
+
+      const disputePara = hasAiKey
+        ? await generateAiDisputeParagraph({
+            agencyName,
+            extractedText: extracted.text || '',
+            fallback: fallbackTemplate,
+            info,
+            issue,
+            issueLabel: issueMeta.label,
+          })
+        : fallbackTemplate()
+
       const text = buildLetterSections({
-        agency,
         agencyName,
+        bureauMailLines,
+        disputePara,
         extracted,
         forBureau,
         info,
-        issue,
         issueMeta,
         resolvedUploads,
       })
@@ -208,6 +233,13 @@ function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAg
     }
   }
 
+  const summaryParts = [
+    hasAiKey
+      ? 'Drafts use AI where API keys are configured, plus extracted PDF text when available; verify every fact before sending.'
+      : 'Configure OPENAI_API_KEY or ANTHROPIC_API_KEY on the server for AI-written dispute paragraphs; otherwise structured FCRA-style templates are used.',
+    'Report excerpt text is machine-read and may contain errors — compare to your official bureau file.',
+  ]
+
   return JSON.stringify({
     recommendations: [
       'Read the entire letter and every line extracted from your PDF; automated text can miss columns or mix pages.',
@@ -215,8 +247,7 @@ function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAg
       'Keep proof of mailing or filing through each bureau’s official dispute channel.',
     ],
     letters: letterList,
-    summary:
-      'Draft letters now include stronger FCRA-style dispute language plus, when possible, text read from your uploaded PDF. Verify all details against your real credit report before sending.',
+    summary: summaryParts.join(' '),
   })
 }
 
@@ -289,7 +320,7 @@ export default async function handler(request, response) {
 
     sendEvent(response, { type: 'status', message: 'Drafting dispute letters…' })
 
-    const text = buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
+    const text = await buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)

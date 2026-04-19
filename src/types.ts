@@ -89,6 +89,8 @@ export interface AppState {
   streamMessage: string
   openLetter: string | null
   info: AppInfo
+  /** Optional label shown in My Disputes; auto-generated on save if left blank. */
+  disputeTitle: string
   agencies: AgencyId[]
   issues: IssueId[]
   files: CreditFile[]
@@ -98,12 +100,16 @@ export interface AppState {
   recommendations?: string[]
 }
 
+/** Profile JSON persisted for wizard prefill (keys mirror AppInfo). */
+export type SavedContact = Partial<AppInfo>
+
 export interface Profile {
   id: string
   email: string
   created_at: string
   full_name: string | null
   updated_at?: string
+  saved_contact?: SavedContact
 }
 
 export interface Subscription {
@@ -125,6 +131,8 @@ export interface AppUser {
   email: string
   name: string | null
   created_at: string
+  /** Saved wizard contact fields for prefill on return visits. */
+  saved_contact?: SavedContact
   subscription_id?: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
@@ -145,6 +153,8 @@ export interface DisputeRecord {
   ai_summary: string | null
   created_at: string
   updated_at?: string
+  /** Populated list queries via `letters(count)` embed; detail uses full `letters`. */
+  letter_count?: number
   letters?: StoredLetter[]
   uploads?: UploadRecord[]
 }

@@ -58,7 +58,7 @@ export function useAuth() {
         },
         { onConflict: 'id' },
       )
-      .select('id, email, full_name, created_at')
+      .select('id, email, full_name, created_at, saved_contact')
       .single()
 
     if (profileResult.error) {
@@ -67,11 +67,16 @@ export function useAuth() {
 
     const subscriptionResult = await getSubscriptionRecord(supabase, target.id)
 
+    const saved = profileResult.data.saved_contact
+    const saved_contact =
+      saved && typeof saved === 'object' && !Array.isArray(saved) ? (saved as AppUser['saved_contact']) : undefined
+
     const nextUser: AppUser = {
       id: profileResult.data.id,
       email: profileResult.data.email,
       name: profileResult.data.full_name,
       created_at: profileResult.data.created_at,
+      saved_contact,
       subscription_id: subscriptionResult?.id ?? null,
       stripe_customer_id: subscriptionResult?.stripe_customer_id ?? null,
       stripe_subscription_id: subscriptionResult?.stripe_subscription_id ?? null,

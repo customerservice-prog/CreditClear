@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
-import { formatDateLabel } from '../lib/formatters'
+import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import type { AppTab, DisputeRecord } from '../types'
 
 interface DashboardPageProps {
@@ -123,7 +123,9 @@ export function DashboardPage({
                   <div>
                     <div className="history-title">{dispute.title || 'Untitled Dispute'}</div>
                     <div className="history-sub">
-                      {formatDateLabel(dispute.created_at)} · {dispute.issue_categories.length} issue categories · {dispute.bureau_targets.length} bureaus
+                      {formatDateLabel(dispute.created_at)} · {disputeLetterCount(dispute)} letter
+                      {disputeLetterCount(dispute) === 1 ? '' : 's'} · {dispute.issue_categories.length} issue categories ·{' '}
+                      {dispute.bureau_targets.length} bureaus
                     </div>
                   </div>
                   <button className="btn btn-ghost" onClick={() => onOpenDispute(dispute.id)} type="button">

@@ -4,21 +4,39 @@ export function isValidEmail(value: string) {
   return /\S+@\S+\.\S+/.test(value)
 }
 
-export function validateAppInfo(info: AppInfo) {
-  if (!info.firstName.trim() || !info.lastName.trim() || !info.email.trim()) {
-    return 'Please complete your required personal information.'
+/** Per-field errors for Step 0 (required: first, last, email). */
+export function getPersonalFieldErrors(info: AppInfo): Partial<Record<keyof AppInfo, string>> {
+  const e: Partial<Record<keyof AppInfo, string>> = {}
+  if (!info.firstName.trim()) {
+    e.firstName = 'First name is required.'
   }
-
-  if (!isValidEmail(info.email.trim())) {
-    return 'Please enter a valid email address.'
+  if (!info.lastName.trim()) {
+    e.lastName = 'Last name is required.'
   }
-
-  if (info.firstName.length > 80 || info.lastName.length > 80 || info.address.length > 160) {
-    return 'One or more fields are too long.'
+  if (!info.email.trim()) {
+    e.email = 'Email is required.'
+  } else if (!isValidEmail(info.email.trim())) {
+    e.email = 'Please enter a valid email address.'
   }
-
+  if (info.firstName.length > 80) {
+    e.firstName = e.firstName || 'First name is too long (max 80 characters).'
+  }
+  if (info.lastName.length > 80) {
+    e.lastName = e.lastName || 'Last name is too long (max 80 characters).'
+  }
+  if (info.address.length > 160) {
+    e.address = 'Address is too long.'
+  }
   if (info.ssn && !/^\d{4}$/.test(info.ssn)) {
-    return 'Last four of SSN must be exactly 4 digits.'
+    e.ssn = 'Last four of SSN must be exactly 4 digits.'
+  }
+  return e
+}
+
+export function validateAppInfo(info: AppInfo) {
+  const fieldErrors = getPersonalFieldErrors(info)
+  if (Object.keys(fieldErrors).length > 0) {
+    return 'Please complete your required personal information.'
   }
 
   return null

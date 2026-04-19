@@ -1,4 +1,5 @@
-import type { Letter } from '../types'
+import { ISSUES } from './constants'
+import type { AgencyId, IssueId, Letter } from '../types'
 
 const ISSUE_LABELS: Record<string, string> = {
   late: 'Late Payments',
@@ -54,6 +55,39 @@ export function formatReportBureauLabel(value?: string | null) {
     return 'All 3 bureaus (one file)'
   }
   return formatAgencyName(value)
+}
+
+const AGENCY_SHORT: Record<string, string> = {
+  equifax: 'Equifax',
+  experian: 'Experian',
+  transunion: 'TransUnion',
+}
+
+/** Short title for My Disputes cards when the user did not name the dispute. */
+export function buildAutoDisputeTitle(agencies: AgencyId[], issues: IssueId[]) {
+  const bureauPart =
+    agencies.length === 0
+      ? 'Credit bureaus'
+      : agencies.length === 3
+        ? '3 Bureaus'
+        : agencies.map((id) => AGENCY_SHORT[id] || id).join(' & ')
+  const issueLabels = issues
+    .map((id) => ISSUES.find((i) => i.id === id)?.label)
+    .filter(Boolean) as string[]
+  const issuePart =
+    issueLabels.length === 0
+      ? 'Dispute'
+      : issueLabels.length <= 2
+        ? issueLabels.join(' & ')
+        : `${issueLabels.slice(0, 2).join(', ')} +${issueLabels.length - 2}`
+  return `${bureauPart} · ${issues.length || 0} issues · ${issuePart}`
+}
+
+export function disputeLetterCount(record: { letter_count?: number; letters?: { length?: number } }) {
+  if (typeof record.letter_count === 'number' && !Number.isNaN(record.letter_count)) {
+    return record.letter_count
+  }
+  return record.letters?.length ?? 0
 }
 
 export function formatDisputeStatusLabel(value?: string | null) {

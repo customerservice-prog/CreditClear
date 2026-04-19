@@ -21,7 +21,9 @@ export function useDisputes(userId?: string) {
     const supabase = requireSupabase()
     const disputesResult = await supabase
       .from('disputes')
-      .select('id, user_id, title, status, bureau_targets, issue_categories, personal_info, ai_summary, created_at, updated_at')
+      .select(
+        'id, user_id, title, status, bureau_targets, issue_categories, personal_info, ai_summary, created_at, updated_at, letters(count)',
+      )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
@@ -32,7 +34,15 @@ export function useDisputes(userId?: string) {
       throw disputesResult.error
     }
 
-    const nextDisputes = (disputesResult.data ?? []) as DisputeRecord[]
+    const raw = disputesResult.data ?? []
+    const nextDisputes: DisputeRecord[] = raw.map((row: Record<string, unknown>) => {
+      const nested = row.letters as { count?: number }[] | undefined
+      const countRaw = Array.isArray(nested) && nested[0] && typeof nested[0].count !== 'undefined' ? nested[0].count : 0
+      const letter_count = typeof countRaw === 'number' ? countRaw : Number(countRaw) || 0
+      const rest = { ...row }
+      delete rest.letters
+      return { ...rest, letter_count } as DisputeRecord
+    })
     setDisputes(nextDisputes)
     return nextDisputes
   }, [userId])

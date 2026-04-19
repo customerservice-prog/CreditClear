@@ -8,7 +8,7 @@ import { trackEvent, trackPageView } from './lib/analytics'
 import { streamGeneratedLetters } from './lib/letterStream'
 import { createInitialState } from './lib/constants'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
-import { buildLetterFileName } from './lib/formatters'
+import { buildAutoDisputeTitle, buildLetterFileName } from './lib/formatters'
 import { captureClientError } from './lib/monitoring'
 import { MarketingMain, SkipToContent } from './components/MarketingPageFrame'
 import { formatAuthError } from './lib/authErrors'
@@ -16,7 +16,7 @@ import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
 import { validateFileCoverageForAgencies } from './lib/reportCoverage'
-import type { DisputeDetail, Letter, ReportBureauTag } from './types'
+import type { AppInfo, DisputeDetail, DisputeRecord, Letter, ReportBureauTag } from './types'
 import { getBlogPostBySlug } from './data/blogPosts'
 import { getPublicEnv } from './lib/publicEnv'
 import { SITE_URL } from './lib/site'
@@ -277,13 +277,21 @@ function AppRoutes() {
 
     const fullName = appUser?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || ''
     const parts = String(fullName).trim().split(/\s+/).filter(Boolean)
+    const saved = appUser?.saved_contact
     setAppState((previous) => ({
       ...previous,
       info: {
         ...previous.info,
         email: previous.info.email || authUser.email || '',
-        firstName: previous.info.firstName || parts[0] || '',
-        lastName: previous.info.lastName || parts.slice(1).join(' ') || '',
+        firstName: previous.info.firstName || parts[0] || saved?.firstName?.trim() || '',
+        lastName: previous.info.lastName || parts.slice(1).join(' ') || saved?.lastName?.trim() || '',
+        phone: previous.info.phone || saved?.phone?.trim() || '',
+        address: previous.info.address || saved?.address?.trim() || '',
+        city: previous.info.city || saved?.city?.trim() || '',
+        state: previous.info.state || saved?.state?.trim() || '',
+        zip: previous.info.zip || saved?.zip?.trim() || '',
+        ssn: previous.info.ssn || saved?.ssn?.trim() || '',
+        dob: previous.info.dob || saved?.dob?.trim() || '',
       },
     }))
   }, [appUser, authUser])
@@ -517,15 +525,62 @@ function AppRoutes() {
     navigate('/')
   }
 
+  async function persistProfileContact(info: AppInfo) {
+    if (!authUser || !isSupabaseConfigured) {
+      return
+    }
+
+    const supabase = requireSupabase()
+    const saved_contact = {
+      firstName: info.firstName.trim(),
+      lastName: info.lastName.trim(),
+      email: info.email.trim(),
+      phone: info.phone.trim(),
+      address: info.address.trim(),
+      city: info.city.trim(),
+      state: info.state.trim(),
+      zip: info.zip.trim(),
+      ssn: info.ssn.trim(),
+      dob: info.dob.trim(),
+    }
+
+    const { error } = await supabase.from('profiles').update({ saved_contact }).eq('id', authUser.id)
+
+    if (error) {
+      throw error
+    }
+
+    await refreshAppUser(authUser)
+  }
+
+  async function handleAdvanceFromPersonalStep() {
+    try {
+      await persistProfileContact(appState.info)
+    } catch (error) {
+      captureClientError(error, { flow: 'persist_profile_contact' })
+      setBillingMessage('We could not save your contact info to your profile. You can still continue.')
+    }
+    setAppState((previous) => ({ ...previous, step: 1 }))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   function resetApp() {
     const nextState = createInitialState()
 
     if (authUser) {
       const fullName = appUser?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || ''
       const parts = String(fullName).trim().split(/\s+/).filter(Boolean)
-      nextState.info.firstName = parts[0] || ''
-      nextState.info.lastName = parts.slice(1).join(' ') || ''
+      const saved = appUser?.saved_contact
+      nextState.info.firstName = parts[0] || saved?.firstName?.trim() || ''
+      nextState.info.lastName = parts.slice(1).join(' ') || saved?.lastName?.trim() || ''
       nextState.info.email = authUser.email || ''
+      nextState.info.phone = saved?.phone?.trim() || ''
+      nextState.info.address = saved?.address?.trim() || ''
+      nextState.info.city = saved?.city?.trim() || ''
+      nextState.info.state = saved?.state?.trim() || ''
+      nextState.info.zip = saved?.zip?.trim() || ''
+      nextState.info.ssn = saved?.ssn?.trim() || ''
+      nextState.info.dob = saved?.dob?.trim() || ''
     }
 
     setAppState(nextState)
@@ -654,7 +709,9 @@ function AppRoutes() {
       issue_categories: appState.issues,
       personal_info: appState.info,
       status: 'draft_ready',
-      title: `${appState.issues.length} issue${appState.issues.length === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`,
+      title:
+        appState.disputeTitle.trim() ||
+        buildAutoDisputeTitle(appState.agencies, appState.issues),
       user_id: authUser.id,
     }
     const inserted = await supabase
@@ -700,7 +757,10 @@ function AppRoutes() {
     }
 
     setAppState((previous) => ({ ...previous, currentDisputeId: disputeId }))
-    setDisputes((previous) => [inserted.data as never, ...previous])
+    setDisputes((previous) => [
+      { ...(inserted.data as DisputeRecord), letter_count: letters.length },
+      ...previous,
+    ])
     trackEvent('dispute_saved', { letters: letters.length, uploads: appState.files.length })
   }
 
@@ -787,6 +847,7 @@ function AppRoutes() {
       ...previous,
       tab: 'generator',
       currentDisputeId: detail.id,
+      disputeTitle: detail.title || '',
       step: 4,
       analyzing: false,
       aiSummary: detail.ai_summary || '',
@@ -1138,8 +1199,10 @@ function AppRoutes() {
                 disputes={disputes}
                 disputesLoading={disputesLoading}
                 onAddFiles={(files) => void addFiles(files)}
+                onAdvanceFromPersonalStep={() => void handleAdvanceFromPersonalStep()}
                 onAppTabChange={handleWorkspaceTabChange}
                 onBeginCheckout={() => void beginCheckout()}
+                onDisputeTitleChange={(value) => setAppState((previous) => ({ ...previous, disputeTitle: value }))}
                 onDownloadAll={() => {
                   appState.letters.forEach((letter, index) => {
                     window.setTimeout(() => {

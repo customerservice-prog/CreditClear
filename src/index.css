@@ -249,6 +249,9 @@ a{color:inherit}
 .f.sp{grid-column:span 2}
 .f label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--txt2);font-weight:500}
 .f input,.f select,.f textarea{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 15px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:all .2s;width:100%}
+.f input.input-err,.f select.input-err{border-color:rgba(255,69,103,.45);box-shadow:0 0 0 2px rgba(255,69,103,.06)}
+.f .ferr{font-size:11px;color:#ff9cb0;margin-top:4px;line-height:1.35}
+.btn-hint{font-size:12px;color:var(--txt2);line-height:1.4;max-width:340px}
 .f input::placeholder,.f textarea::placeholder{color:rgba(242,238,232,.22)}
 .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--gold);background:rgba(201,168,76,.05);box-shadow:0 0 0 3px rgba(201,168,76,.08)}
 .f select option{background:#141422}
