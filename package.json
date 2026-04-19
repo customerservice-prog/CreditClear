@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "start": "node server.mjs",
     "test": "vitest run",
-    "db:apply": "npx --yes --package=pg@8.16.3 node scripts/apply-supabase-schema.mjs"
+    "db:apply": "npx --yes --package=pg@8.16.3 node scripts/apply-supabase-schema.mjs",
+    "auth:sync-admin": "node scripts/ensure-supabase-auth-user.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.47.0",
