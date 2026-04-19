@@ -73,7 +73,7 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <img
             alt="CreditClear logo"
             className="hero-logo"
-            src="/creditclear-logo.png"
+            src="/creditclear-logo.svg"
           />
         </div>
         <div className="hero-badge">

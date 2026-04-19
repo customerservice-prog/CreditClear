@@ -83,7 +83,7 @@ a{color:inherit}
   radial-gradient(circle at 30% 70%,rgba(99,216,79,.20),transparent 45%),
   radial-gradient(circle at 78% 44%,rgba(245,200,75,.18),transparent 36%);
   filter:blur(30px);opacity:.95}
-.hero-logo{position:relative;display:block;width:min(92vw,720px);max-height:280px;object-fit:contain;filter:drop-shadow(0 20px 40px rgba(0,0,0,.35));mix-blend-mode:multiply}
+.hero-logo{position:relative;display:block;width:min(92vw,720px);max-height:280px;object-fit:contain;filter:drop-shadow(0 20px 40px rgba(0,0,0,.35))}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(99,216,79,.10);border:1px solid rgba(99,216,79,.25);border-radius:100px;padding:6px 20px 6px 10px;font-size:11px;color:var(--green);letter-spacing:.12em;text-transform:uppercase;font-weight:500;margin-bottom:34px;animation:fu .6s ease both}
 .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 128" fill="none" role="img" aria-labelledby="creditclear-logo-title">
+  <title id="creditclear-logo-title">CreditClear AI</title>
+  <text
+    x="360"
+    y="90"
+    text-anchor="middle"
+    fill="#f6f1e8"
+    font-family="'Cormorant Garamond', 'Georgia', 'Times New Roman', serif"
+    font-size="76"
+    font-weight="500"
+  >
+    Credit<tspan fill="#c9a84c">Clear</tspan> AI
+  </text>
+</svg>

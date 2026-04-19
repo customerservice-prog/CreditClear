@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { MarketingMain, SkipToContent } from '../MarketingPageFrame'
 import { Navbar } from '../Navbar'
 import type { AppTab } from '../../types'
 
@@ -31,6 +32,7 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="page active" id="page-app">
+      <SkipToContent />
       <Navbar
         appTab={appTab}
         isApp
@@ -40,17 +42,19 @@ export function AppShell({
         statusLabel={statusLabel}
         userDisplayName={userDisplayName}
       />
-      <div className="app-wrap">
-        <div className="app-hdr">
-          <div className="app-badge">
-            <div className="pulse-dot"></div> Credit Workspace
+      <MarketingMain>
+        <div className="app-wrap">
+          <div className="app-hdr">
+            <div className="app-badge">
+              <div className="pulse-dot"></div> Credit Workspace
+            </div>
+            <h1>{heading}</h1>
+            <p>{subheading}</p>
           </div>
-          <h1>{heading}</h1>
-          <p>{subheading}</p>
+          {message ? <div className={`app-note ${messageTone}`}>{message}</div> : null}
+          {children}
         </div>
-        {message ? <div className={`app-note ${messageTone}`}>{message}</div> : null}
-        {children}
-      </div>
+      </MarketingMain>
     </div>
   )
 }

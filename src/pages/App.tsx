@@ -1,3 +1,4 @@
+import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { PricingCard } from '../components/PricingCard'
 import { AGENCIES, ANALYSIS_STEPS, ISSUES, PILLS, STEPS } from '../lib/constants'
@@ -87,6 +88,7 @@ export function AppPage({
 
   return (
     <div className="page active" id="page-app">
+      <SkipToContent />
       <Navbar
         appTab={appState.tab}
         isApp
@@ -96,6 +98,7 @@ export function AppPage({
         statusLabel={statusLabel}
         userDisplayName={userDisplayName}
       />
+      <MarketingMain>
       <div className="app-wrap">
         <div className="app-hdr">
           <div className="app-badge">
@@ -178,6 +181,7 @@ export function AppPage({
           })
         )}
       </div>
+      </MarketingMain>
     </div>
   )
 }
