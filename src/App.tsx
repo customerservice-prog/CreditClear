@@ -18,6 +18,7 @@ import { useUploads } from './hooks/useUploads'
 import type { DisputeDetail, Letter } from './types'
 import { getBlogPostBySlug } from './data/blogPosts'
 import { getPublicEnv } from './lib/publicEnv'
+import { isOfflineDraftMode } from './lib/offlineDrafts'
 import { SITE_URL } from './lib/site'
 
 const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
@@ -543,7 +544,9 @@ function AppRoutes() {
       letters: [],
       aiSummary: '',
       recommendations: [],
-      streamMessage: 'Uploading your report and preparing Claude...',
+      streamMessage: isOfflineDraftMode()
+        ? 'Uploading your report and preparing your dispute drafts…'
+        : 'Uploading your report and preparing Claude...',
     }))
 
     let slowStreamHint: number | undefined

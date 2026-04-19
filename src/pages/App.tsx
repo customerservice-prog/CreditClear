@@ -2,6 +2,7 @@ import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { PricingCard } from '../components/PricingCard'
 import { AGENCIES, ANALYSIS_STEPS, ISSUES, PILLS, STEPS } from '../lib/constants'
+import { isOfflineDraftMode } from '../lib/offlineDrafts'
 import type { AgencyId, AppInfo, AppState, AppTab, DisputeRecord, IssueId, Letter } from '../types'
 
 interface AppPageProps {
@@ -80,6 +81,7 @@ export function AppPage({
   statusLabel,
   userDisplayName,
 }: AppPageProps) {
+  const offlineDrafts = isOfflineDraftMode()
   const canContinueFromPersonal =
     Boolean(appState.info.firstName) &&
     Boolean(appState.info.lastName) &&
@@ -121,7 +123,9 @@ export function AppPage({
               loading={billingLoading}
               note={
                 billingMessage ||
-                'Your free trial has ended. Subscribe to CreditClear Pro to keep generating Claude-powered dispute letters and access your saved disputes.'
+                (offlineDrafts
+                  ? 'Your free trial has ended. Subscribe to CreditClear Pro to keep generating dispute letter drafts and access your saved disputes.'
+                  : 'Your free trial has ended. Subscribe to CreditClear Pro to keep generating Claude-powered dispute letters and access your saved disputes.')
               }
               onClick={onBeginCheckout}
               title="CreditClear Pro"
@@ -131,6 +135,7 @@ export function AppPage({
           <DisputesPanel
             disputes={disputes}
             disputesLoading={disputesLoading}
+            offlineDrafts={offlineDrafts}
             onDownloadLetter={onDownloadLetter}
             onLoadDispute={onLoadDispute}
           />
@@ -142,10 +147,14 @@ export function AppPage({
                 <div className="sr"></div>
                 <div className="sr"></div>
               </div>
-              <div className="anim-h">Claude Is Building Your Letters</div>
+              <div className="anim-h">
+                {offlineDrafts ? 'Building Your Dispute Letters' : 'Claude Is Building Your Letters'}
+              </div>
               <div className="anim-s">
                 {appState.streamMessage ||
-                  'Reviewing your report and generating dispute letters bureau by bureau.'}
+                  (offlineDrafts
+                    ? 'Reviewing your report and assembling dispute drafts bureau by bureau.'
+                    : 'Reviewing your report and generating dispute letters bureau by bureau.')}
               </div>
               <div className="a-steps">
                 {ANALYSIS_STEPS.map((step, index) => (
@@ -166,6 +175,7 @@ export function AppPage({
             appState,
             canContinueFromPersonal,
             letterCount,
+            offlineDrafts,
             onAddFiles,
             onDownloadAll,
             onDownloadLetter,
@@ -189,11 +199,13 @@ export function AppPage({
 function DisputesPanel({
   disputes,
   disputesLoading,
+  offlineDrafts,
   onDownloadLetter,
   onLoadDispute,
 }: {
   disputes: DisputeRecord[]
   disputesLoading: boolean
+  offlineDrafts: boolean
   onDownloadLetter: (letter: Letter) => void
   onLoadDispute: (record: DisputeRecord) => void
 }) {
@@ -212,7 +224,9 @@ function DisputesPanel({
           ))}
         </div>
       ) : disputes.length === 0 ? (
-        <div className="disc">No saved disputes yet. Generate your first Claude-powered dispute to build your history.</div>
+        <div className="disc">
+          No saved disputes yet. Generate your first {offlineDrafts ? 'dispute letter draft' : 'Claude-powered dispute'} to build your history.
+        </div>
       ) : (
         <div className="history-list">
           {disputes.map((record) => (
@@ -259,6 +273,7 @@ function renderGeneratorStep({
   appState,
   canContinueFromPersonal,
   letterCount,
+  offlineDrafts,
   onAddFiles,
   onDownloadAll,
   onDownloadLetter,
@@ -275,6 +290,7 @@ function renderGeneratorStep({
   appState: AppState
   canContinueFromPersonal: boolean
   letterCount: number
+  offlineDrafts: boolean
   onAddFiles: (files: FileList | null) => void
   onDownloadAll: () => void
   onDownloadLetter: (letter: Letter) => void
@@ -306,6 +322,7 @@ function renderGeneratorStep({
           appState,
           canContinueFromPersonal,
           letterCount,
+          offlineDrafts,
           onAddFiles,
           onFieldChange,
           onGoToStep,
@@ -323,7 +340,11 @@ function renderGeneratorStep({
       <div className="suc-badge">✓ Generation Complete</div>
       <div className="card-t">Your Dispute Letters Are Ready</div>
       <div className="card-s">
-        Generated {appState.letters.length} live Claude-assisted letter{appState.letters.length === 1 ? '' : 's'} tailored to your selected bureaus and dispute issues.
+        Generated {appState.letters.length}{' '}
+        {offlineDrafts
+          ? `dispute letter draft${appState.letters.length === 1 ? '' : 's'} tailored to your selected bureaus and dispute issues`
+          : `live Claude-assisted letter${appState.letters.length === 1 ? '' : 's'} tailored to your selected bureaus and dispute issues`}
+        .
       </div>
       <div className="stats-mini">
         <div className="sm">
@@ -352,7 +373,9 @@ function renderGeneratorStep({
                 <div className="l-title">
                   {letter.issueIcon} {letter.issueLabel}
                 </div>
-                <div className="l-sub">Claude-Generated Dispute Letter</div>
+                <div className="l-sub">
+                  {offlineDrafts ? 'Dispute Letter Draft' : 'Claude-Generated Dispute Letter'}
+                </div>
               </div>
             </div>
             <span className="l-chev">⌄</span>
@@ -379,7 +402,10 @@ function renderGeneratorStep({
         </div>
       ))}
       <div className="disc">
-        <strong style={{ color: 'var(--gold)' }}>Important Notice:</strong> These letters are AI-generated drafting assistance based on your inputs and uploaded report materials. Review everything before mailing. CreditClear AI is not a law firm and does not provide legal advice.
+        <strong style={{ color: 'var(--gold)' }}>Important Notice:</strong>{' '}
+        {offlineDrafts
+          ? 'These drafts are assembled from your selections for you to edit. Review everything before mailing. CreditClear AI is not a law firm and does not provide legal advice.'
+          : 'These letters are AI-generated drafting assistance based on your inputs and uploaded report materials. Review everything before mailing. CreditClear AI is not a law firm and does not provide legal advice.'}
       </div>
       <div className="btn-row">
         <button className="btn btn-ghost" onClick={onResetApp} type="button">
@@ -397,6 +423,7 @@ function renderWizardStep({
   appState,
   canContinueFromPersonal,
   letterCount,
+  offlineDrafts,
   onAddFiles,
   onFieldChange,
   onGoToStep,
@@ -408,6 +435,7 @@ function renderWizardStep({
   appState: AppState
   canContinueFromPersonal: boolean
   letterCount: number
+  offlineDrafts: boolean
   onAddFiles: (files: FileList | null) => void
   onFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
   onGoToStep: (step: number) => void
@@ -488,7 +516,10 @@ function renderWizardStep({
     return (
       <div className="card">
         <div className="card-t">What&apos;s on Your Report?</div>
-        <div className="card-s">Select every issue type — Claude will build a targeted letter for each one.</div>
+        <div className="card-s">
+          Select every issue type — we&apos;ll create a targeted draft for each one
+          {offlineDrafts ? '.' : ' with Claude.'}
+        </div>
         <button className="sa-btn" onClick={() => onSetSelectedIssues(allSelected ? [] : ISSUES.map((item) => item.id))} type="button">
           {allSelected ? 'Deselect All' : 'Select All Issues'}
         </button>
@@ -527,7 +558,12 @@ function renderWizardStep({
   return (
     <div className="card">
       <div className="card-t">Upload Your Credit Report</div>
-      <div className="card-s">Drag &amp; drop a PDF or screenshot. Claude will analyze it alongside your selected issues and bureaus.</div>
+      <div className="card-s">
+        Drag &amp; drop a PDF or screenshot
+        {offlineDrafts
+          ? ' to keep with your file (optional). Drafts use your selections below.'
+          : '. Claude will analyze it alongside your selected issues and bureaus.'}
+      </div>
       <label className="uz">
         <span className="ui-big">📂</span>
         <div className="ut">Drop Your Credit Report Here</div>

@@ -1,3 +1,4 @@
+import { hasConfiguredAiApiKeys } from './_lib/ai-keys.js'
 import { resolveAiModel, resolveAiProvider } from './_lib/ai.js'
 import { applyCors } from './_lib/cors.js'
 import { assertPremiumAccess, ensureAccountState } from './_lib/account.js'
@@ -33,12 +34,6 @@ const ISSUES = {
   cl: { label: 'Closed Accounts', icon: '🔒' },
   sl: { label: 'Student Loans', icon: '🎓' },
   med: { label: 'Medical Debt', icon: '🏥' },
-}
-
-function hasAnyAiApiKey() {
-  return ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY'].some((name) =>
-    Boolean(String(process.env[name] || '').trim()),
-  )
 }
 
 function isAiStubMode() {
@@ -81,7 +76,7 @@ function buildStubAiResponseText(normalizedRequest) {
       letterList.push({
         agency,
         issue,
-        subject: `${agencyName} — ${issueMeta.label}: sample draft for review`,
+        subject: `${agencyName} — ${issueMeta.label}: dispute draft for review`,
         text: [
           fullName,
           [info.address, [info.city, info.state].filter(Boolean).join(', '), info.zip].filter(Boolean).join('\n') ||
@@ -98,7 +93,7 @@ function buildStubAiResponseText(normalizedRequest) {
           '',
           'This letter is a demonstration layout generated so you can preview format and structure. Edit every line to match your situation before you send mail or submit through an official dispute portal. Do not rely on placeholder text as a final submission.',
           '',
-          'When personalized AI drafting is active for your CreditClear workspace, this section is filled from your selections and any materials you upload.',
+          'You can paste additional details from your credit report or upload notes into this letter before you send it.',
           '',
           'Sincerely,',
           fullName,
@@ -111,13 +106,13 @@ function buildStubAiResponseText(normalizedRequest) {
 
   return JSON.stringify({
     recommendations: [
-      'Review each draft carefully.',
-      'Insert your own facts, account identifiers, and dates from your credit file.',
-      'Your administrator can enable personalized AI drafting for your deployment.',
+      'Review every paragraph before you send anything to a bureau.',
+      'Replace bracketed hints with account numbers, dates, and balances from your real report.',
+      'Save a copy for your records after you edit.',
     ],
     letters: letterList,
     summary:
-      'Demonstration drafts are ready. These samples show the letter structure for each bureau and issue — edit all content before use, or ask your workspace admin to enable full AI-assisted drafting.',
+      'Your dispute letter drafts are ready. Each one matches a bureau and issue you selected — read closely, personalize the details, then use your bureau’s official dispute channel.',
   })
 }
 
@@ -142,7 +137,7 @@ export default async function handler(request, response) {
     const normalizedRequest = normalizeGenerationRequest(request.body || {})
     const uploads = await resolveOwnedUploads(normalizedRequest.fileIds, authUser.id)
 
-    const useStub = isAiStubMode() || !hasAnyAiApiKey()
+    const useStub = isAiStubMode() || !hasConfiguredAiApiKeys()
     if (!useStub) {
       assertAiKeysConfigured()
     }

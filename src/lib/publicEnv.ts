@@ -4,7 +4,7 @@ declare global {
   }
 }
 
-type RuntimeInjectedKey = 'OWNER_FREE_ACCESS_EMAILS' | 'ADMIN_EMAIL'
+type RuntimeInjectedKey = 'OWNER_FREE_ACCESS_EMAILS' | 'ADMIN_EMAIL' | 'VITE_OFFLINE_DRAFTS'
 
 export type PublicEnvKey = keyof ImportMetaEnv | RuntimeInjectedKey
 
