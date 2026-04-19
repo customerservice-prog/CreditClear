@@ -35,6 +35,73 @@ const ISSUES = {
   med: { label: 'Medical Debt', icon: '🏥' },
 }
 
+function hasAnyAiApiKey() {
+  return ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY'].some((name) =>
+    Boolean(String(process.env[name] || '').trim()),
+  )
+}
+
+function isAiStubMode() {
+  const raw = String(process.env.AI_STUB_MODE || '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
+function assertAiKeysConfigured() {
+  const provider = resolveAiProvider()
+  if (provider === 'anthropic') {
+    if (!getOptionalEnv('ANTHROPIC_API_KEY', 'AI_API_KEY')) {
+      throw new ApiError(
+        503,
+        'Letter drafting is not configured. Set ANTHROPIC_API_KEY (or AI_API_KEY with an Anthropic key) on the server. For demos without an API key, set AI_STUB_MODE=1 to return sample text only.',
+        { expose: true },
+      )
+    }
+  } else if (!getOptionalEnv('OPENAI_API_KEY', 'AI_API_KEY')) {
+    throw new ApiError(
+      503,
+      'Letter drafting is not configured. Set AI_API_KEY or OPENAI_API_KEY on the server. For demos without an API key, set AI_STUB_MODE=1 to return sample text only.',
+      { expose: true },
+    )
+  }
+}
+
+function buildStubAiResponseText(normalizedRequest) {
+  const agencies = normalizedRequest.agencies?.length
+    ? normalizedRequest.agencies
+    : Object.keys(AGENCIES)
+  const issues = normalizedRequest.issues?.length ? normalizedRequest.issues : Object.keys(ISSUES)
+  const info = normalizedRequest.info || {}
+  const letterList = []
+
+  for (const agency of agencies) {
+    for (const issue of issues) {
+      const agencyName = AGENCIES[agency] || agency
+      const issueMeta = ISSUES[issue] || { label: issue }
+      letterList.push({
+        agency,
+        issue,
+        subject: `${agencyName} — ${issueMeta.label} (demonstration draft)`,
+        text: [
+          `${info.firstName || ''} ${info.lastName || ''}`.trim() || 'Consumer',
+          '',
+          `Agency: ${agencyName}. Issue category: ${issueMeta.label}.`,
+          '',
+          'This is sample output while AI_STUB_MODE is enabled. Add ANTHROPIC_API_KEY / AI_API_KEY on the server for full AI-generated letters.',
+          '',
+          'Replace this stub with your own narrative after enabling the real model.',
+        ].join('\n'),
+      })
+    }
+  }
+
+  return JSON.stringify({
+    recommendations: ['Enable a real model key to generate tailored dispute drafts from your uploads.'],
+    letters: letterList,
+    summary:
+      'Demonstration mode (AI_STUB_MODE): sample letters only. Configure API keys for AI-assisted drafting.',
+  })
+}
+
 const AI_SYSTEM_PROMPT =
   'You are a careful consumer-finance document assistant. Generate factual, professional, user-reviewable dispute-draft content. Never promise outcomes, never claim guaranteed removals, never invent facts, never present legal advice, and never impersonate a law firm. Return only valid JSON with keys: summary, recommendations, letters. Each letter must contain: agency, issue, subject, text.'
 
@@ -56,6 +123,11 @@ export default async function handler(request, response) {
     const normalizedRequest = normalizeGenerationRequest(request.body || {})
     const uploads = await resolveOwnedUploads(normalizedRequest.fileIds, authUser.id)
 
+    const useStub = isAiStubMode() || !hasAnyAiApiKey()
+    if (!useStub) {
+      assertAiKeysConfigured()
+    }
+
     response.setHeader('Content-Type', 'text/event-stream')
     response.setHeader('Cache-Control', 'no-cache, no-transform')
     response.setHeader('Connection', 'keep-alive')
@@ -73,11 +145,16 @@ export default async function handler(request, response) {
 
     sendEvent(response, { type: 'status', message: 'Analyzing credit report details...' })
 
-    sendEvent(response, { type: 'status', message: 'Drafting dispute letters...' })
+    sendEvent(response, {
+      type: 'status',
+      message: useStub ? 'Building demonstration letters (stub mode)...' : 'Drafting dispute letters...',
+    })
 
-    const text = provider === 'anthropic'
-      ? await generateWithAnthropic(prompt, uploads, authUser.id)
-      : await generateWithOpenAi(prompt, uploads, authUser.id)
+    const text = useStub
+      ? buildStubAiResponseText(normalizedRequest)
+      : provider === 'anthropic'
+        ? await generateWithAnthropic(prompt, uploads, authUser.id)
+        : await generateWithOpenAi(prompt, uploads, authUser.id)
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)

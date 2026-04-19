@@ -1,6 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createAccountRequest } from '../lib/apiClient'
+import { bootstrapUserRequest, createAccountRequest } from '../lib/apiClient'
 import { captureClientError } from '../lib/monitoring'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
@@ -77,8 +77,12 @@ export function useAuth() {
         trial_ends_at: subscriptionResult?.trial_ends_at ?? null,
       }
 
-      setAppUser(nextUser)
-      return nextUser
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      const mirrored = token ? await mirrorSubscriptionFromServer(nextUser, token) : nextUser
+
+      setAppUser(mirrored)
+      return mirrored
     },
     [authUser],
   )
@@ -173,7 +177,7 @@ export function useAuth() {
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = requireSupabase()
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     })
 
@@ -231,6 +235,37 @@ export function useAuth() {
     signInWithGoogle,
     signOut,
     signUp,
+  }
+}
+
+/**
+ * Server applies owner/complimentary subscription overrides (see api/_lib/account.js).
+ * The browser only reads Supabase directly, so without this mirror ops accounts show "Expired"
+ * even though /api/* grants access. Bootstrap returns the same subscription row the API uses.
+ */
+async function mirrorSubscriptionFromServer(
+  clientUser: AppUser,
+  accessToken: string,
+): Promise<AppUser> {
+  try {
+    const { user: serverUser } = await bootstrapUserRequest(accessToken)
+    if (!serverUser.id || serverUser.id !== clientUser.id) {
+      return clientUser
+    }
+
+    return {
+      ...clientUser,
+      subscription_id: serverUser.subscription_id ?? clientUser.subscription_id,
+      stripe_customer_id: serverUser.stripe_customer_id,
+      stripe_subscription_id: serverUser.stripe_subscription_id,
+      subscription_status: serverUser.subscription_status,
+      subscription_price_id: serverUser.subscription_price_id,
+      subscription_current_period_end: serverUser.subscription_current_period_end,
+      trial_ends_at: serverUser.trial_ends_at,
+    }
+  } catch (error) {
+    captureClientError(error, { flow: 'subscription_mirror' })
+    return clientUser
   }
 }
 

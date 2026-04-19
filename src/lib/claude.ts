@@ -9,6 +9,54 @@ interface GenerateLettersInput {
   onEvent: (event: LetterStreamEvent) => void
 }
 
+function normalizeSseText(buffer: string): string {
+  return buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
+/**
+ * Parse Server-Sent Events by lines (SSE events end with a blank line). Splitting only on `\n\n`
+ * fails for CRLF-only frames and can concatenate/join chunks incorrectly for large payloads.
+ */
+function dispatchSseFromLineBuffer(
+  lineBuffer: string,
+  dataLines: string[],
+  onEvent: (event: LetterStreamEvent) => void,
+): { lineBuffer: string; shouldStop: boolean } {
+  let buf = lineBuffer
+
+  while (buf.includes('\n')) {
+    const i = buf.indexOf('\n')
+    const line = buf.slice(0, i)
+    buf = buf.slice(i + 1)
+
+    if (line === '') {
+      if (dataLines.length === 0) {
+        continue
+      }
+      const raw = dataLines.join('\n')
+      dataLines.length = 0
+      try {
+        onEvent(JSON.parse(raw) as LetterStreamEvent)
+      } catch {
+        onEvent({
+          message:
+            'The AI response stream was malformed. If this persists, try again or contact support.',
+          type: 'error',
+        })
+        return { lineBuffer: buf, shouldStop: true }
+      }
+      continue
+    }
+
+    const trimmed = line.replace(/\u0000/g, '').trimEnd()
+    if (trimmed.startsWith('data:')) {
+      dataLines.push(trimmed.slice(5).trimStart())
+    }
+  }
+
+  return { lineBuffer: buf, shouldStop: false }
+}
+
 export async function streamGeneratedLetters({
   accessToken,
   agencies,
@@ -36,52 +84,76 @@ export async function streamGeneratedLetters({
     throw new Error(payload.error || 'Unable to generate letters.')
   }
 
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('text/html')) {
+    const snippet = await response.clone().text()
+    throw new Error(
+      snippet.trimStart().startsWith('<!') || /<html[\s>]/i.test(snippet)
+        ? 'The app received an HTML page instead of a live stream. Confirm API routes are deployed with the static site.'
+        : 'Unexpected response while starting letter generation. Please try again.',
+    )
+  }
+
   if (!response.body) {
     throw new Error('Streaming is not available in this browser.')
   }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
-  let buffer = ''
+  let lineBuffer = ''
+  const pendingData: string[] = []
 
-  while (true) {
-    const { done, value } = await reader.read()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
 
-    if (done) {
-      break
-    }
+      if (value) {
+        lineBuffer += decoder.decode(value, { stream: true })
+      }
+      if (done) {
+        lineBuffer += decoder.decode()
+      }
 
-    buffer += decoder.decode(value, { stream: true })
-    const chunks = buffer.split('\n\n')
-    buffer = chunks.pop() || ''
+      lineBuffer = normalizeSseText(lineBuffer)
+      const pass = dispatchSseFromLineBuffer(lineBuffer, pendingData, onEvent)
+      lineBuffer = pass.lineBuffer
+      if (pass.shouldStop) {
+        return
+      }
 
-    for (const chunk of chunks) {
-      const lines = chunk
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-
-      for (const line of lines) {
-        if (!line.startsWith('data:')) {
-          continue
+      if (done) {
+        if (pendingData.length) {
+          const raw = pendingData.join('\n')
+          pendingData.length = 0
+          try {
+            onEvent(JSON.parse(raw) as LetterStreamEvent)
+          } catch {
+            onEvent({
+              message:
+                'The AI response stream was malformed. If this persists, try again or contact support.',
+              type: 'error',
+            })
+          }
+        } else if (lineBuffer.trim()) {
+          const tail = lineBuffer.trimEnd()
+          if (tail.startsWith('data:')) {
+            const raw = tail.slice(5).trimStart()
+            try {
+              onEvent(JSON.parse(raw) as LetterStreamEvent)
+            } catch {
+              onEvent({
+                message:
+                  'The AI response stream was malformed. If this persists, try again or contact support.',
+                type: 'error',
+              })
+            }
+          }
         }
-
-        const json = line.slice(5).trim()
-        if (!json) {
-          continue
-        }
-
-        try {
-          onEvent(JSON.parse(json) as LetterStreamEvent)
-        } catch {
-          onEvent({
-            message: 'The AI response stream was malformed. Please try again.',
-            type: 'error',
-          })
-          return
-        }
+        break
       }
     }
+  } finally {
+    reader.releaseLock()
   }
 }
 

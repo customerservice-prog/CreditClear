@@ -23,5 +23,13 @@ export function formatAuthError(error: unknown): string {
     return 'Request timed out or was interrupted. Check your connection and try again.'
   }
 
+  if (/invalid login credentials|invalid email or password/i.test(msg)) {
+    return (
+      'That email or password does not match our records. Check for typos (for example l vs I in the password), ' +
+      'or use “Forgot password” if you use email login. If you recently changed the admin password in hosting ' +
+      'env vars, run npm run auth:sync-admin (see .env.example) so Supabase Auth gets the same password.'
+    )
+  }
+
   return msg
 }
