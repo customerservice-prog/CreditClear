@@ -7,11 +7,30 @@ import type { AppUser } from '../types'
 
 const GET_SESSION_TIMEOUT_MS = 8000
 const REFRESH_PROFILE_BUDGET_MS = 25_000
+/** Password grant uses native fetch (no client abort); cap wait so the UI never spins forever. */
+const SIGN_IN_WITH_PASSWORD_TIMEOUT_MS = 60_000
 
 function sleep(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof window.setTimeout>
+  const deadline = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(
+        new DOMException(
+          `${label} timed out after ${Math.round(ms / 1000)}s. Check your connection and Supabase URL.`,
+          'AbortError',
+        ),
+      )
+    }, ms)
+  })
+  return Promise.race([promise, deadline]).finally(() => {
+    window.clearTimeout(timeoutId)
+  }) as Promise<T>
 }
 
 async function raceRefreshAppUser(
@@ -165,17 +184,21 @@ export function useAuth() {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = requireSupabase()
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { data, error } = await withTimeout(
+      supabase.auth.signInWithPassword({
+        email,
+        password,
+      }),
+      SIGN_IN_WITH_PASSWORD_TIMEOUT_MS,
+      'Sign in',
+    )
 
     if (error) {
       throw error
     }
 
     if (data.user) {
-      await raceRefreshAppUser(
+      void raceRefreshAppUser(
         () => refreshAppUser(data.user!, data.session?.access_token),
         'sign_in_profile',
       )
@@ -190,7 +213,7 @@ export function useAuth() {
     const signInResult = await signIn(email, password)
 
     if (signInResult.user && signInResult.session?.access_token) {
-      await raceRefreshAppUser(
+      void raceRefreshAppUser(
         () => refreshAppUser(signInResult.user!, signInResult.session!.access_token),
         'sign_up_profile',
       )
