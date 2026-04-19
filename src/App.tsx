@@ -10,6 +10,7 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { buildLetterFileName } from './lib/formatters'
 import { captureClientError } from './lib/monitoring'
 import { MarketingMain, SkipToContent } from './components/MarketingPageFrame'
+import { formatAuthError } from './lib/authErrors'
 import { sanitizeEditableLetterText, validateAppInfo } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
@@ -299,7 +300,7 @@ function AppRoutes() {
       navigate('/dashboard')
     } catch (error) {
       captureClientError(error, { flow: 'login' })
-      setAuthError(error instanceof Error ? error.message : 'Unable to sign in.')
+      setAuthError(formatAuthError(error))
     } finally {
       setAuthLoading(false)
     }
@@ -345,7 +346,7 @@ function AppRoutes() {
       navigate('/dashboard')
     } catch (error) {
       captureClientError(error, { flow: 'signup' })
-      setAuthError(error instanceof Error ? error.message : 'Unable to create your account.')
+      setAuthError(formatAuthError(error))
     } finally {
       setAuthLoading(false)
     }
@@ -362,7 +363,7 @@ function AppRoutes() {
       await signInWithGoogle()
     } catch (error) {
       captureClientError(error, { flow: 'google_auth' })
-      setAuthError(error instanceof Error ? error.message : 'Unable to start Google sign-in.')
+      setAuthError(formatAuthError(error))
       setAuthLoading(false)
     }
   }
@@ -394,7 +395,7 @@ function AppRoutes() {
       setAuthNotice('Password reset email sent. Check your inbox and spam folder for the link.')
     } catch (error) {
       captureClientError(error, { flow: 'forgot_password' })
-      setAuthError(error instanceof Error ? error.message : 'Unable to send a reset email.')
+      setAuthError(formatAuthError(error))
     } finally {
       setAuthLoading(false)
     }
