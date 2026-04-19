@@ -116,6 +116,21 @@ export const supabase = isSupabaseConfigured
   })
   : null
 
+/** Fire-and-forget: wakes Auth on free-tier Supabase after auto-pause (cold start ~15s otherwise). */
+function pingSupabaseAuthWarmup(baseUrl: string, anonKey: string) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  const root = baseUrl.replace(/\/$/, '')
+  void fetch(`${root}/auth/v1/settings`, {
+    headers: { apikey: anonKey },
+  }).catch(() => {})
+}
+
+if (isSupabaseConfigured && supabaseUrl && supabaseAnonKey) {
+  pingSupabaseAuthWarmup(supabaseUrl, supabaseAnonKey)
+}
+
 export function requireSupabase() {
   if (!supabase) {
     throw new Error('Supabase environment variables are missing.')

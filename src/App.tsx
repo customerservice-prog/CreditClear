@@ -100,6 +100,7 @@ function AppRoutes() {
   const [authError, setAuthError] = useState('')
   const [authNotice, setAuthNotice] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
+  const [authLongWaitHint, setAuthLongWaitHint] = useState(false)
   const [billingLoading, setBillingLoading] = useState(false)
   const [billingMessage, setBillingMessage] = useState('')
   const [detailLoading, setDetailLoading] = useState(false)
@@ -290,8 +291,10 @@ function AppRoutes() {
       return
     }
 
+    setAuthLongWaitHint(false)
+    setAuthLoading(true)
+    const slowHintTimer = window.setTimeout(() => setAuthLongWaitHint(true), 4000)
     try {
-      setAuthLoading(true)
       setAuthError('')
       setAuthNotice('')
       await signIn(loginEmail.trim(), loginPassword)
@@ -302,6 +305,8 @@ function AppRoutes() {
       captureClientError(error, { flow: 'login' })
       setAuthError(formatAuthError(error))
     } finally {
+      window.clearTimeout(slowHintTimer)
+      setAuthLongWaitHint(false)
       setAuthLoading(false)
     }
   }
@@ -332,8 +337,10 @@ function AppRoutes() {
       return
     }
 
+    setAuthLongWaitHint(false)
+    setAuthLoading(true)
+    const slowHintTimer = window.setTimeout(() => setAuthLongWaitHint(true), 4000)
     try {
-      setAuthLoading(true)
       setAuthError('')
       setAuthNotice('')
       const data = await signUp(signupName.trim(), signupEmail.trim(), signupPassword)
@@ -348,6 +355,8 @@ function AppRoutes() {
       captureClientError(error, { flow: 'signup' })
       setAuthError(formatAuthError(error))
     } finally {
+      window.clearTimeout(slowHintTimer)
+      setAuthLongWaitHint(false)
       setAuthLoading(false)
     }
   }
@@ -825,6 +834,7 @@ function AppRoutes() {
           element={
             <LoginPage
               authLoading={authLoading}
+              authLoadingSlowHint={authLongWaitHint}
               error={authError}
               loginEmail={loginEmail}
               loginPassword={loginPassword}
@@ -846,6 +856,7 @@ function AppRoutes() {
           element={
             <SignupPage
               authLoading={authLoading}
+              authLoadingSlowHint={authLongWaitHint}
               error={authError}
               acceptedTerms={signupAcceptedTerms}
               notice={authNotice}

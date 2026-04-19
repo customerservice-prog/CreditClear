@@ -1,36 +1,18 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useState } from 'react'
-import { bootstrapUserRequest, createAccountRequest } from '../lib/apiClient'
+import { createAccountRequest } from '../lib/apiClient'
 import { captureClientError } from '../lib/monitoring'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { AppUser } from '../types'
 
-const GET_SESSION_TIMEOUT_MS = 8000
+/** Free-tier Supabase can take 15s+ to cold-start; avoid clearing the session while Auth is waking. */
+const GET_SESSION_TIMEOUT_MS = 60_000
 const REFRESH_PROFILE_BUDGET_MS = 25_000
-/** Password grant uses native fetch (no client abort); cap wait so the UI never spins forever. */
-const SIGN_IN_WITH_PASSWORD_TIMEOUT_MS = 60_000
 
 function sleep(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timeoutId: ReturnType<typeof window.setTimeout>
-  const deadline = new Promise<never>((_, reject) => {
-    timeoutId = window.setTimeout(() => {
-      reject(
-        new DOMException(
-          `${label} timed out after ${Math.round(ms / 1000)}s. Check your connection and Supabase URL.`,
-          'AbortError',
-        ),
-      )
-    }, ms)
-  })
-  return Promise.race([promise, deadline]).finally(() => {
-    window.clearTimeout(timeoutId)
-  }) as Promise<T>
 }
 
 async function raceRefreshAppUser(
@@ -51,20 +33,10 @@ export function useAuth() {
   const [loading, setLoading] = useState(isSupabaseConfigured)
 
   const refreshAppUser = useCallback(
-    async (user = authUser, accessToken = session?.access_token) => {
+    async (user = authUser, _accessToken = session?.access_token) => {
       if (!user || !isSupabaseConfigured) {
         setAppUser(null)
         return null
-      }
-
-      if (accessToken) {
-        try {
-          const bootstrapResult = await bootstrapUserRequest(accessToken)
-          setAppUser(bootstrapResult.user)
-          return bootstrapResult.user
-        } catch {
-          // Fall back to direct client reads so auth still works if the API is temporarily unavailable.
-        }
       }
 
       const supabase = requireSupabase()
@@ -184,14 +156,10 @@ export function useAuth() {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = requireSupabase()
-    const { data, error } = await withTimeout(
-      supabase.auth.signInWithPassword({
-        email,
-        password,
-      }),
-      SIGN_IN_WITH_PASSWORD_TIMEOUT_MS,
-      'Sign in',
-    )
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
     if (error) {
       throw error

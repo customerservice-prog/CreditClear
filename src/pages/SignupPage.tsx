@@ -6,6 +6,7 @@ import { CTA_TRIAL_LABEL } from '../lib/site'
 interface SignupPageProps {
   acceptedTerms: boolean
   authLoading: boolean
+  authLoadingSlowHint?: boolean
   error: string
   notice: string
   onAcceptedTermsChange: (value: boolean) => void
@@ -26,6 +27,7 @@ interface SignupPageProps {
 export function SignupPage({
   acceptedTerms,
   authLoading,
+  authLoadingSlowHint = false,
   error,
   notice,
   onAcceptedTermsChange,
@@ -106,7 +108,11 @@ export function SignupPage({
               </span>
             </label>
             <button className="btn-auth" disabled={authLoading} onClick={onSignup} type="button">
-              {authLoading ? 'Creating Account...' : 'Create Account'}
+              {authLoading
+                ? authLoadingSlowHint
+                  ? 'Connecting to server...'
+                  : 'Creating Account...'
+                : 'Create Account'}
             </button>
             <div className="auth-div">
               <span>or</span>

@@ -4,6 +4,8 @@ import { Navbar } from '../components/Navbar'
 
 interface LoginPageProps {
   authLoading: boolean
+  /** After a few seconds of waiting (e.g. Supabase cold start), show this instead of "Signing In...". */
+  authLoadingSlowHint?: boolean
   error: string
   loginEmail: string
   loginPassword: string
@@ -21,6 +23,7 @@ interface LoginPageProps {
 
 export function LoginPage({
   authLoading,
+  authLoadingSlowHint = false,
   error,
   loginEmail,
   loginPassword,
@@ -76,7 +79,11 @@ export function LoginPage({
               />
             </div>
             <button className="btn-auth" disabled={authLoading} onClick={onLogin} type="button">
-              {authLoading ? 'Signing In...' : 'Sign In'}
+              {authLoading
+                ? authLoadingSlowHint
+                  ? 'Connecting to server...'
+                  : 'Signing In...'
+                : 'Sign In'}
             </button>
             <div className="auth-div">
               <span>or</span>
