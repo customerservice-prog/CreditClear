@@ -137,5 +137,10 @@ function isOwnerAccessUser(authUser) {
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean)
 
-  return configuredEmails.includes(email)
+  if (configuredEmails.includes(email)) {
+    return true
+  }
+
+  const adminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase()
+  return Boolean(adminEmail && adminEmail === email)
 }

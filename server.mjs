@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BLOG_POSTS } from './server/blog-slugs.mjs'
 import { getCrawlerHtml } from './server/crawler-html.mjs'
+import { getPublicBrowserEnv } from './server/public-browser-env.mjs'
 import { APEX_HOST, isSearchOrPreviewBot, requestHostname, SITE_ORIGIN } from './server/seo-config.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -112,16 +113,10 @@ ${urls}
     }
 
     if (url.pathname === '/env.js') {
-      const publicEnv = {}
-      for (const [key, value] of Object.entries(process.env)) {
-        if (key.startsWith('VITE_') && typeof value === 'string' && value.length > 0) {
-          publicEnv[key] = value
-        }
-      }
       response.statusCode = 200
       response.setHeader('Content-Type', 'application/javascript; charset=utf-8')
       response.setHeader('Cache-Control', 'no-store')
-      response.end(`window.__ENV__=${JSON.stringify(publicEnv)};`)
+      response.end(`window.__ENV__=${JSON.stringify(getPublicBrowserEnv())};`)
       return
     }
 

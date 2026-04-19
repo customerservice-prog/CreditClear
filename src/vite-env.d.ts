@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_ANON_KEY?: string
   readonly VITE_STRIPE_PUBLISHABLE_KEY?: string
+  /** Optional duplicate of OWNER_FREE_ACCESS_EMAILS for local Vite when /env.js is not used. */
+  readonly VITE_OWNER_FREE_ACCESS_EMAILS?: string
 }
 
 interface ImportMeta {

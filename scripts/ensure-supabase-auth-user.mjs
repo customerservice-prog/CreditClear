@@ -1,6 +1,7 @@
 /**
  * Ensures ADMIN_EMAIL exists in Supabase Auth with ADMIN_PASSWORD (email confirmed).
- * Railway ADMIN_* vars are not wired to the login form — this syncs them to Supabase.
+ * Use the same email you log in with on /login; that email also gets complimentary access
+ * when it matches ADMIN_EMAIL or OWNER_FREE_ACCESS_EMAILS (server + dashboard UI).
  *
  * Usage (local):  set env from Railway or .env, then:
  *   npm run auth:sync-admin
