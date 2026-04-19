@@ -77,28 +77,47 @@ function buildStubAiResponseText(normalizedRequest) {
     for (const issue of issues) {
       const agencyName = AGENCIES[agency] || agency
       const issueMeta = ISSUES[issue] || { label: issue }
+      const fullName = `${info.firstName || ''} ${info.lastName || ''}`.trim() || 'Consumer'
       letterList.push({
         agency,
         issue,
-        subject: `${agencyName} — ${issueMeta.label} (demonstration draft)`,
+        subject: `${agencyName} — ${issueMeta.label}: sample draft for review`,
         text: [
-          `${info.firstName || ''} ${info.lastName || ''}`.trim() || 'Consumer',
+          fullName,
+          [info.address, [info.city, info.state].filter(Boolean).join(', '), info.zip].filter(Boolean).join('\n') ||
+            '',
           '',
-          `Agency: ${agencyName}. Issue category: ${issueMeta.label}.`,
+          `${agencyName}`,
+          'Consumer dispute correspondence (draft for your review)',
           '',
-          'This is sample output while AI_STUB_MODE is enabled. Add ANTHROPIC_API_KEY / AI_API_KEY on the server for full AI-generated letters.',
+          `Re: ${issueMeta.label}`,
           '',
-          'Replace this stub with your own narrative after enabling the real model.',
-        ].join('\n'),
+          'Dear Sir or Madam,',
+          '',
+          `I am writing to dispute information on my credit report related to “${issueMeta.label}” as it appears with your bureau. [Replace this paragraph with your specific accounts, dates, and balances exactly as shown on your report.]`,
+          '',
+          'This letter is a demonstration layout generated so you can preview format and structure. Edit every line to match your situation before you send mail or submit through an official dispute portal. Do not rely on placeholder text as a final submission.',
+          '',
+          'When personalized AI drafting is active for your CreditClear workspace, this section is filled from your selections and any materials you upload.',
+          '',
+          'Sincerely,',
+          fullName,
+        ]
+          .filter((line, i, arr) => !(line === '' && arr[i + 1] === ''))
+          .join('\n'),
       })
     }
   }
 
   return JSON.stringify({
-    recommendations: ['Enable a real model key to generate tailored dispute drafts from your uploads.'],
+    recommendations: [
+      'Review each draft carefully.',
+      'Insert your own facts, account identifiers, and dates from your credit file.',
+      'Your administrator can enable personalized AI drafting for your deployment.',
+    ],
     letters: letterList,
     summary:
-      'Demonstration mode (AI_STUB_MODE): sample letters only. Configure API keys for AI-assisted drafting.',
+      'Demonstration drafts are ready. These samples show the letter structure for each bureau and issue — edit all content before use, or ask your workspace admin to enable full AI-assisted drafting.',
   })
 }
 
@@ -149,7 +168,7 @@ export default async function handler(request, response) {
 
     sendEvent(response, {
       type: 'status',
-      message: useStub ? 'Building demonstration letters (stub mode)...' : 'Drafting dispute letters...',
+      message: useStub ? 'Preparing demonstration drafts…' : 'Drafting dispute letters...',
     })
 
     let text
