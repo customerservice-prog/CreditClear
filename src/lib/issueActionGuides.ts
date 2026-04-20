@@ -220,6 +220,30 @@ export function openIssueGuideNavigation(issueId: IssueId): void {
   window.dispatchEvent(new CustomEvent<OpenIssueGuideDetail>(OPEN_ISSUE_GUIDE_EVENT, { detail: { issueId } }))
 }
 
+/** DOM id on each `.lc` letter card (reverse navigation from issue guides). */
+export const LETTER_CARD_ID_PREFIX = 'letter-card-'
+
+export function letterCardElementId(letterId: string): string {
+  return `${LETTER_CARD_ID_PREFIX}${letterId}`
+}
+
+/** Wizard only: expands the matching letter accordion so the card is readable after scroll. */
+export const FOCUS_LETTER_CARD_EVENT = 'creditclear:focus-letter-card' as const
+
+export interface FocusLetterCardDetail {
+  letterId: string
+}
+
+/** Hash update + focus event + smooth-scroll to the letter card (repeat-safe). */
+export function openLetterCardNavigation(letterId: string): void {
+  if (typeof window === 'undefined') return
+  window.history.replaceState(null, '', `#${letterCardElementId(letterId)}`)
+  window.dispatchEvent(new CustomEvent<FocusLetterCardDetail>(FOCUS_LETTER_CARD_EVENT, { detail: { letterId } }))
+  window.setTimeout(() => {
+    document.getElementById(letterCardElementId(letterId))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, 0)
+}
+
 /** Optional account context line for the panel header */
 export function formatIssueAccountHint(detail: IssueAccountDetail | undefined): string | null {
   if (!detail?.creditorName?.trim()) return null

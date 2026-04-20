@@ -4,6 +4,8 @@ import {
   issueGuideElementId,
   isValidIssueId,
   ISSUE_GUIDE_ID_PREFIX,
+  LETTER_CARD_ID_PREFIX,
+  letterCardElementId,
 } from './issueActionGuides'
 import type { IssueId } from '../types'
 
@@ -42,5 +44,9 @@ describe('issueActionGuides', () => {
   it('issueGuideElementId matches hash prefix contract', () => {
     expect(issueGuideElementId('late')).toBe(`${ISSUE_GUIDE_ID_PREFIX}late`)
     expect(issueGuideElementId('late').startsWith(ISSUE_GUIDE_ID_PREFIX)).toBe(true)
+  })
+
+  it('letterCardElementId matches letter card anchor prefix', () => {
+    expect(letterCardElementId('abc-uuid')).toBe(`${LETTER_CARD_ID_PREFIX}abc-uuid`)
   })
 })

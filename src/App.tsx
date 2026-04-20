@@ -22,6 +22,7 @@ import {
 } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
 import { useUploads } from './hooks/useUploads'
+import { FOCUS_LETTER_CARD_EVENT, type FocusLetterCardDetail } from './lib/issueActionGuides'
 import { validateFileCoverageForAgencies } from './lib/reportCoverage'
 import type { AppInfo, DisputeDetail, DisputeRecord, IssueId, Letter, ReportBureauTag } from './types'
 import { getBlogPostBySlug } from './data/blogPosts'
@@ -179,6 +180,21 @@ function AppRoutes() {
   const letterSaveTimers = useRef<Record<string, number>>({})
   const { disputes, error: disputesError, getDetail, loading: disputesLoading, refresh: refreshDisputes, setDisputes, updateLetterText } = useDisputes(authUser?.id)
   const { uploadFiles } = useUploads(authUser?.id)
+
+  /** Wizard (/disputes/new): expand the letter accordion when jumping from an issue guide link. */
+  useEffect(() => {
+    function onFocusLetterCard(event: Event) {
+      const detail = (event as CustomEvent<FocusLetterCardDetail>).detail
+      if (!detail?.letterId) return
+      if (location.pathname !== '/disputes/new') return
+      setAppState((previous) => {
+        if (previous.step < 4) return previous
+        return { ...previous, openLetter: detail.letterId }
+      })
+    }
+    window.addEventListener(FOCUS_LETTER_CARD_EVENT, onFocusLetterCard)
+    return () => window.removeEventListener(FOCUS_LETTER_CARD_EVENT, onFocusLetterCard)
+  }, [location.pathname])
 
   useEffect(() => {
     let meta: { description: string; title: string }

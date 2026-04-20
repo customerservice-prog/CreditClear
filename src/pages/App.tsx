@@ -12,6 +12,7 @@ import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
 import { AGENCIES, GENERATION_PHASES, ISSUES, LETTER_TYPE_OPTIONS, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
+import { letterCardElementId } from '../lib/issueActionGuides'
 import { getPersonalFieldErrors } from '../lib/validators'
 import type {
   AgencyId,
@@ -452,9 +453,23 @@ function renderGeneratorStep({
           <div className="sml">Bureaus</div>
         </div>
       </div>
-      <DisputeIssueActionPanel id="issue-action-guides" issueDetails={appState.issueDetails} issueIds={appState.issues} />
+      <DisputeIssueActionPanel
+        id="issue-action-guides"
+        issueDetails={appState.issueDetails}
+        issueIds={appState.issues}
+        lettersForNav={appState.letters.map((l) => ({
+          id: l.id,
+          issue: l.issue,
+          agencyLabel: l.agencyName,
+        }))}
+      />
       {appState.letters.map((letter) => (
-        <div className={`lc${appState.openLetter === letter.id ? ' open' : ''}`} key={letter.id}>
+        <div
+          className={`lc${appState.openLetter === letter.id ? ' open' : ''}`}
+          id={letterCardElementId(letter.id)}
+          key={letter.id}
+          style={{ scrollMarginTop: 96 }}
+        >
           <button
             className="lh"
             onClick={() => onSetOpenLetter(appState.openLetter === letter.id ? null : letter.id)}

@@ -7,15 +7,27 @@ import {
   getIssueActionGuide,
   isValidIssueId,
   issueGuideElementId,
+  letterCardElementId,
+  openLetterCardNavigation,
   type OpenIssueGuideDetail,
 } from '../lib/issueActionGuides'
 import type { IssueAccountDetail, IssueId } from '../types'
+
+/** Minimal letter list so each issue can link back to generated drafts below. */
+export interface LetterNavRef {
+  id: string
+  /** Must match the issue category id (e.g. `late`, `coll`). */
+  issue: string
+  agencyLabel: string
+}
 
 interface DisputeIssueActionPanelProps {
   issueIds: IssueId[]
   issueDetails?: Partial<Record<IssueId, IssueAccountDetail>> | null
   /** When set, scroll margin for anchor links from dashboard */
   id?: string
+  /** Letters on this page — used for "Jump to your letters" under each issue */
+  lettersForNav?: LetterNavRef[]
 }
 
 /**
@@ -26,7 +38,12 @@ interface DisputeIssueActionPanelProps {
  * Supports `#issue-guide-{issueId}` deep links and `openIssueGuideNavigation()`
  * from letter cards.
  */
-export function DisputeIssueActionPanel({ issueIds, issueDetails, id: sectionId }: DisputeIssueActionPanelProps) {
+export function DisputeIssueActionPanel({
+  issueIds,
+  issueDetails,
+  id: sectionId,
+  lettersForNav,
+}: DisputeIssueActionPanelProps) {
   const unique = useMemo(() => Array.from(new Set(issueIds)), [issueIds])
   const [openId, setOpenId] = useState<IssueId | null>(unique.length === 1 ? unique[0] : null)
 
@@ -83,6 +100,8 @@ export function DisputeIssueActionPanel({ issueIds, issueDetails, id: sectionId 
           const detail = issueDetails?.[issueId]
           const accountHint = formatIssueAccountHint(detail)
           const isOpen = openId === issueId
+          const lettersThisIssue =
+            lettersForNav?.filter((row) => row.issue === issueId) ?? []
           return (
             <div
               key={issueId}
@@ -185,6 +204,41 @@ export function DisputeIssueActionPanel({ issueIds, issueDetails, id: sectionId 
                     <br />
                     {guide.letterRoundHint}
                   </div>
+                  {lettersThisIssue.length > 0 ? (
+                    <div style={{ marginTop: 14 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          opacity: 0.85,
+                          marginBottom: 8,
+                        }}
+                      >
+                        Jump to your letters for this issue
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {lettersThisIssue.map((row) => (
+                          <a
+                            key={row.id}
+                            className="b-copy"
+                            href={`#${letterCardElementId(row.id)}`}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              openLetterCardNavigation(row.id)
+                            }}
+                            title={`Scroll to the ${row.agencyLabel} draft below`}
+                          >
+                            {row.agencyLabel}
+                          </a>
+                        ))}
+                      </div>
+                      <p className="disc" style={{ marginTop: 10, marginBottom: 0, fontSize: 12 }}>
+                        One link per bureau you selected; each opens the matching draft further down the page.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

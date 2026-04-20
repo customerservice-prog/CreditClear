@@ -7,7 +7,7 @@ import { ComingSoon } from '../components/ComingSoon'
 import { useMailings, formatPostage, type MailingRow } from '../hooks/useMailings'
 import { getBillingStatus, mailLetterRequest } from '../lib/apiClient'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
-import { isValidIssueId } from '../lib/issueActionGuides'
+import { isValidIssueId, letterCardElementId } from '../lib/issueActionGuides'
 import { buildLetterFileName, formatAgencyName, formatDateLabel, formatDisputeStatusLabel } from '../lib/formatters'
 import type { AppTab, DisputeDetail, IssueId, Letter } from '../types'
 
@@ -97,6 +97,11 @@ export function DisputeDetailPage({
               id="issue-action-guides"
               issueDetails={detail.issue_account_details ?? undefined}
               issueIds={detail.issue_categories.filter((c): c is IssueId => isValidIssueId(c))}
+              lettersForNav={detail.letters.map((l) => ({
+                id: l.id,
+                issue: l.issue,
+                agencyLabel: l.agencyName,
+              }))}
             />
             <DisputeLetters
               detail={detail}
@@ -172,7 +177,7 @@ function DisputeLetters({ detail, onDownloadLetter, onOpenInGenerator, onSaveLet
         const mailing = mailingByLetter.get(letter.id)
         const isMailableBureau = letter.agency === 'equifax' || letter.agency === 'experian' || letter.agency === 'transunion'
         return (
-          <div className="lc open" key={letter.id}>
+          <div className="lc open" id={letterCardElementId(letter.id)} key={letter.id} style={{ scrollMarginTop: 96 }}>
             <div className="lh">
               <div className="lhl">
                 <span className="pill pgen">{letter.agencyName}</span>
