@@ -730,6 +730,7 @@ function AppRoutes() {
         info: appState.info,
         issueDetails: appState.issueDetails,
         issues: appState.issues,
+        letterType: appState.letterType,
         onEvent: (event) => {
           if (event.type === 'status') {
             setAppState((previous) => ({
@@ -1348,6 +1349,7 @@ function AppRoutes() {
                 }
                 onResetApp={resetApp}
                 onSetFileReportBureau={(fileId, bureau) => void setFileReportBureau(fileId, bureau)}
+                onSetLetterType={(letterType) => setAppState((previous) => ({ ...previous, letterType }))}
                 onSetOpenLetter={(id) => setAppState((previous) => ({ ...previous, openLetter: id }))}
                 onSetSelectedAgencies={(agencies) => setAppState((previous) => ({ ...previous, agencies }))}
                 onSetSelectedIssues={(issues) =>

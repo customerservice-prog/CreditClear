@@ -1,4 +1,4 @@
-import type { AppInfo, CreditFile, IssueDetailsMap, Letter, LetterStreamEvent } from '../types'
+import type { AppInfo, CreditFile, IssueDetailsMap, Letter, LetterStreamEvent, LetterType } from '../types'
 import { getAccessTokenForApi } from './authSession'
 import { requireSupabase } from './supabase'
 
@@ -8,6 +8,7 @@ interface GenerateLettersInput {
   info: AppInfo
   issues: string[]
   issueDetails: IssueDetailsMap
+  letterType: LetterType
   onEvent: (event: LetterStreamEvent) => void
 }
 
@@ -67,6 +68,7 @@ export async function streamGeneratedLetters({
   info,
   issues,
   issueDetails,
+  letterType,
   onEvent,
 }: GenerateLettersInput) {
   const abortController = new AbortController()
@@ -81,7 +83,7 @@ export async function streamGeneratedLetters({
       })
   }, GENERATION_FETCH_TIMEOUT_MS)
 
-  const bodyPayload = { agencies, files, info, issues, issueDetails }
+  const bodyPayload = { agencies, files, info, issues, issueDetails, letterType }
 
   const runFetch = (token: string) =>
     fetch('/api/generate-dispute-draft', {

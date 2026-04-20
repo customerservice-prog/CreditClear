@@ -5,7 +5,7 @@ import { Navbar } from '../components/Navbar'
 import { ComingSoon } from '../components/ComingSoon'
 import { WaitlistCard } from '../components/WaitlistCard'
 import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
-import { AGENCIES, GENERATION_PHASES, ISSUES, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
+import { AGENCIES, GENERATION_PHASES, ISSUES, LETTER_TYPE_OPTIONS, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import { getPersonalFieldErrors } from '../lib/validators'
@@ -18,6 +18,7 @@ import type {
   IssueAccountDetail,
   IssueId,
   Letter,
+  LetterType,
   ReportBureauTag,
 } from '../types'
 
@@ -48,6 +49,7 @@ interface AppPageProps {
   onRemoveFile: (index: number) => void
   onResetApp: () => void
   onSetFileReportBureau: (fileId: string, bureau: ReportBureauTag | null) => void
+  onSetLetterType: (letterType: LetterType) => void
   onSetOpenLetter: (id: string | null) => void
   onSetSelectedAgencies: (agencies: AgencyId[]) => void
   onSetSelectedIssues: (issues: IssueId[]) => void
@@ -100,6 +102,7 @@ export function AppPage({
   onRemoveFile,
   onResetApp,
   onSetFileReportBureau,
+  onSetLetterType,
   onSetOpenLetter,
   onSetSelectedAgencies,
   onSetSelectedIssues,
@@ -225,6 +228,7 @@ export function AppPage({
             onRemoveFile,
             onResetApp,
             onSetFileReportBureau,
+            onSetLetterType,
             onSetOpenLetter,
             onSetSelectedAgencies,
             onSetSelectedIssues,
@@ -335,6 +339,7 @@ function renderGeneratorStep({
   onRemoveFile,
   onResetApp,
   onSetFileReportBureau,
+  onSetLetterType,
   onSetOpenLetter,
   onSetSelectedAgencies,
   onSetSelectedIssues,
@@ -357,6 +362,7 @@ function renderGeneratorStep({
   onRemoveFile: (index: number) => void
   onResetApp: () => void
   onSetFileReportBureau: (fileId: string, bureau: ReportBureauTag | null) => void
+  onSetLetterType: (letterType: LetterType) => void
   onSetOpenLetter: (id: string | null) => void
   onSetSelectedAgencies: (agencies: AgencyId[]) => void
   onSetSelectedIssues: (issues: IssueId[]) => void
@@ -392,6 +398,7 @@ function renderGeneratorStep({
           personalFieldErrors,
           onRemoveFile,
           onSetFileReportBureau,
+          onSetLetterType,
           onSetSelectedAgencies,
           onSetSelectedIssues,
           onStartAnalysis,
@@ -546,6 +553,7 @@ function renderWizardStep({
   personalFieldErrors,
   onRemoveFile,
   onSetFileReportBureau,
+  onSetLetterType,
   onSetSelectedAgencies,
   onSetSelectedIssues,
   onStartAnalysis,
@@ -562,6 +570,7 @@ function renderWizardStep({
   personalFieldErrors: Partial<Record<keyof AppInfo, string>>
   onRemoveFile: (index: number) => void
   onSetFileReportBureau: (fileId: string, bureau: ReportBureauTag | null) => void
+  onSetLetterType: (letterType: LetterType) => void
   onSetSelectedAgencies: (agencies: AgencyId[]) => void
   onSetSelectedIssues: (issues: IssueId[]) => void
   onStartAnalysis: () => void
@@ -824,6 +833,56 @@ function renderWizardStep({
             ) : null}
           </div>
         ))}
+      </div>
+      <div
+        className="card"
+        style={{
+          marginTop: 18,
+          background: 'rgba(212, 175, 55, 0.06)',
+          border: '1px solid rgba(212, 175, 55, 0.25)',
+        }}
+      >
+        <div className="card-t" style={{ marginBottom: 4 }}>
+          Choose your letter type
+        </div>
+        <div className="card-s" style={{ marginBottom: 10 }}>
+          We&apos;ll draft <strong>{letterCount}</strong> {letterCount === 1 ? 'letter' : 'letters'} of the type you pick — one per selected bureau and issue. Default is the Round 1 bureau dispute.
+        </div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {LETTER_TYPE_OPTIONS.map((opt) => {
+            const active = appState.letterType === opt.id
+            return (
+              <label
+                key={opt.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: active ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(255,255,255,0.08)',
+                  background: active ? 'rgba(212, 175, 55, 0.08)' : 'rgba(255,255,255,0.02)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  checked={active}
+                  name="letter-type"
+                  onChange={() => onSetLetterType(opt.id)}
+                  style={{ marginTop: 4 }}
+                  type="radio"
+                  value={opt.id}
+                />
+                <span style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontWeight: 600 }}>{opt.label}</span>
+                  <span style={{ display: 'block', fontSize: 12, opacity: 0.75 }}>
+                    <em>{opt.citation}</em> — {opt.blurb}
+                  </span>
+                </span>
+              </label>
+            )
+          })}
+        </div>
       </div>
       <button className="btn-gen" onClick={onStartAnalysis} type="button">
         ⚡ Generate {letterCount} Dispute Letter{letterCount === 1 ? '' : 's'}

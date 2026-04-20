@@ -1,6 +1,51 @@
-import type { Agency, AppState, Issue } from '../types'
+import type { Agency, AppState, Issue, LetterType } from '../types'
 
 export const STEPS = ['Personal Info', 'Agencies', "Accounts & items you're disputing", 'Upload', 'Letters']
+
+/** Six dispute letter templates the user can choose from on Step 4. */
+export const LETTER_TYPE_OPTIONS: Array<{
+  id: LetterType
+  label: string
+  citation: string
+  blurb: string
+}> = [
+  {
+    id: 'bureau_initial',
+    label: 'Bureau initial dispute (Round 1)',
+    citation: 'FCRA §611',
+    blurb: 'Mailed to the credit bureau requesting a reasonable reinvestigation. Start here.',
+  },
+  {
+    id: 'mov',
+    label: 'Method-of-verification (Round 2)',
+    citation: 'FCRA §611(a)(7)',
+    blurb: 'Use after a bureau "verified" an item — forces them to disclose how they verified.',
+  },
+  {
+    id: 'furnisher',
+    label: 'Furnisher direct dispute (Round 3)',
+    citation: 'FCRA §1681s-2(b)',
+    blurb: 'Mailed to the original creditor or collector — replace the [Furnisher] block with the company\'s consumer-disputes address before sending.',
+  },
+  {
+    id: 'validation',
+    label: 'Debt validation',
+    citation: 'FDCPA §1692g',
+    blurb: 'Sent to a collection agency within 30 days of first contact to validate the debt.',
+  },
+  {
+    id: 'goodwill',
+    label: 'Goodwill request',
+    citation: 'Courtesy — no statute',
+    blurb: 'For technically-accurate late items where you have an otherwise good history with the creditor.',
+  },
+  {
+    id: 'cfpb',
+    label: 'CFPB complaint draft (Round 4)',
+    citation: 'consumerfinance.gov/complaint',
+    blurb: 'Generates the text to paste into the CFPB online portal. Use after rounds 1-3 stall.',
+  },
+]
 
 export const AGENCIES: Agency[] = [
   { id: 'equifax', name: 'Equifax' },
@@ -83,6 +128,7 @@ export function createInitialState(): AppState {
     issues: [],
     files: [],
     letters: [],
+    letterType: 'bureau_initial',
     disputeTitle: '',
     issueDetails: {},
   }

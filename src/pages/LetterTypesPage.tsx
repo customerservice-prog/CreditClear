@@ -1,7 +1,6 @@
-import { ComingSoon } from '../components/ComingSoon'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
-import { FEATURE_FLAGS, statusBadgeLabel, type FeatureStatus } from '../lib/featureFlags'
+import { statusBadgeLabel, type FeatureStatus } from '../lib/featureFlags'
 import { SITE_URL } from '../lib/site'
 
 interface LetterTypesPageProps {
@@ -32,46 +31,41 @@ const LETTERS: LetterRow[] = [
     id: 'mov',
     title: 'Method of verification (MOV)',
     citation: 'FCRA §611(a)(7)',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Round 2 letter sent after a bureau "verifies" an item. Forces the bureau to disclose how they verified — what they actually contacted and what method they used. Often produces deletion when the bureau cannot answer.',
-    eta: 'Available to founding members',
   },
   {
     id: 'furnisher',
     title: 'Furnisher direct dispute',
     citation: 'FCRA §1681s-2(b)',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Round 3 letter sent directly to the data furnisher (the original creditor or collector). Triggers a separate investigation duty under §1681s-2(b) and is often more effective than going through the bureau again.',
-    eta: 'Available to founding members',
   },
   {
     id: 'validation',
     title: 'Debt validation',
     citation: 'FDCPA §809 · 15 U.S.C. §1692g',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Sent to a collection agency within 30 days of first contact. The collector must validate the debt (amount, original creditor, right to collect) before continuing collection activity.',
-    eta: 'Available to founding members',
   },
   {
     id: 'goodwill',
     title: 'Goodwill request',
     citation: 'No statute — courtesy request',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Sent to the original creditor when a late payment is technically accurate but contextually disputable (illness, system error, isolated incident). Asks for a courtesy removal.',
-    eta: 'Available to founding members',
   },
   {
     id: 'cfpb',
     title: 'CFPB complaint template',
     citation: 'consumerfinance.gov/complaint',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Round 4 escalation. We generate the complaint text; you submit it on the CFPB portal. Often the fastest way to get a stuck dispute moving.',
-    eta: 'Available to founding members',
   },
 ]
 
@@ -141,7 +135,14 @@ export function LetterTypesPage({ onHome, onSignIn, onStartTrial }: LetterTypesP
         </div>
 
         <div className="section" style={{ paddingTop: 8, maxWidth: 980, margin: '0 auto' }}>
-          <ComingSoon feature={FEATURE_FLAGS.letter_types_six} source="letter_types_page" />
+          <div className="card" style={{ background: 'rgba(48, 200, 120, 0.08)', border: '1px solid rgba(48, 200, 120, 0.3)' }}>
+            <div className="card-t">All six templates are live</div>
+            <div className="disc" style={{ marginTop: 6 }}>
+              Pick the letter type on Step 4 of the dispute workflow before you click Generate. The
+              same form fields are reused across every template — switching the type just changes
+              the body, citations, and addressee.
+            </div>
+          </div>
         </div>
 
         <footer aria-label="Site footer" className="footer">

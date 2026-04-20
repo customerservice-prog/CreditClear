@@ -1,5 +1,12 @@
 export type AppTab = 'generator' | 'disputes'
 export type AgencyId = 'equifax' | 'experian' | 'transunion'
+export type LetterType =
+  | 'bureau_initial'
+  | 'mov'
+  | 'furnisher'
+  | 'validation'
+  | 'goodwill'
+  | 'cfpb'
 export type IssueId =
   | 'late'
   | 'coll'
@@ -103,6 +110,8 @@ export interface AppState {
   issueDetails: IssueDetailsMap
   files: CreditFile[]
   letters: Letter[]
+  /** Which dispute letter template to draft (Step 4 picker). */
+  letterType: LetterType
   currentDisputeId?: string | null
   aiSummary?: string
   recommendations?: string[]

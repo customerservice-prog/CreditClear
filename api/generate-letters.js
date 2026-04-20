@@ -1,9 +1,9 @@
 import { applyCors } from './_lib/cors.js'
 import { assertPremiumAccess, ensureAccountState } from './_lib/account.js'
-import { BUREAU_MAILING } from './_lib/bureauMail.js'
 import { extractTextFromBureauUploads } from './_lib/extract-report-text.js'
 import { normalizeGenerationRequest } from './_lib/generation.js'
 import { ApiError, sendError, toSseErrorMessage } from './_lib/http.js'
+import { LETTER_TYPE_META, buildLetterText, letterSubject } from './_lib/letter-templates.js'
 import { assertRateLimit } from './_lib/rate-limit.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
 import { sanitizeText } from './_lib/validation.js'
@@ -29,7 +29,8 @@ const ISSUES = {
   med: { label: 'Medical Debt', icon: '🏥' },
 }
 
-/** Issue-specific legal hooks (not legal advice; user must verify). Each issue uses different emphasis. */
+/* eslint-disable */
+/** @deprecated retained only as a fallback hint for legacy paths; live letters now route through letter-templates.js */
 const ISSUE_DISPUTE_PARAGRAPH = {
   late: (agencyName) =>
     `I dispute the reported late-payment history associated with the account identified in this letter. Furnishers must report accurate payment history under 15 U.S.C. § 1681s-2. If any late payment notation on my ${agencyName} file cannot be verified as 100% accurate and complete for this tradeline, I request deletion or correction following a reasonable reinvestigation under 15 U.S.C. § 1681i.`,
@@ -56,138 +57,13 @@ const ISSUE_DISPUTE_PARAGRAPH = {
   med: (agencyName) =>
     `I dispute medical-debt reporting on my ${agencyName} file, including balance, provider, insurance status, and collection placement. I request correction or deletion of items that cannot be verified in accordance with consumer-reporting standards.`,
 }
-
-function letterDateFormatted() {
-  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-function buildAccountSpecificParagraph(issueMeta, issueDetail) {
-  if (!issueDetail?.creditorName?.trim()) {
-    return ''
-  }
-  const bits = [
-    `The account at issue concerns "${issueDetail.creditorName.trim()}" as reported on my file for the dispute category "${issueMeta.label}".`,
-  ]
-  if (issueDetail.accountLast4?.trim()) {
-    bits.push(`Account reference (as reported / last digits): ${issueDetail.accountLast4.trim()}.`)
-  }
-  if (issueDetail.amountOrBalance?.trim()) {
-    bits.push(`Balance or amount shown: ${issueDetail.amountOrBalance.trim()}.`)
-  }
-  if (issueDetail.reportedDate?.trim()) {
-    bits.push(`Relevant date or status period: ${issueDetail.reportedDate.trim()}.`)
-  }
-  if (issueDetail.disputeReason?.trim()) {
-    bits.push(`Summary of my position: ${issueDetail.disputeReason.trim()}`)
-  }
-  return bits.join(' ')
-}
+/* eslint-enable */
 
 function uploadsForAgency(resolvedUploads, agency) {
   return resolvedUploads.filter((row) => {
     const tag = row.report_bureau
     return !tag || tag === 'combined' || tag === agency
   })
-}
-
-function buildLetterSections({
-  agencyName,
-  bureauMailLines,
-  disputePara,
-  extracted,
-  forBureau,
-  info,
-  issueDetail,
-  issueMeta,
-}) {
-  const fullName = `${info.firstName || ''} ${info.lastName || ''}`.trim() || 'Consumer'
-  const street = (info.address || '').trim()
-  const cityState = [info.city, info.state].filter(Boolean).join(', ').trim()
-  const zip = (info.zip || '').trim()
-  const cityLine = [cityState, zip].filter(Boolean).join(' ').trim()
-
-  const bureauLines =
-    bureauMailLines?.length > 0 ? bureauMailLines : [agencyName, 'Confirm the current mail-in dispute address on the bureau website.']
-
-  const accountSpecific = buildAccountSpecificParagraph(issueMeta, issueDetail)
-  // Note: raw PDF text is intentionally NOT pasted into letters anymore.
-  // Bureaus reject letters that look like a wall of OCR'd report text. Structured
-  // tradeline parsing lands in PR 3 and feeds buildAccountSpecificParagraph properly.
-  void extracted
-
-  /** @type {string[]} */
-  const lines = [
-    letterDateFormatted(),
-    '',
-    fullName,
-    street,
-    cityLine,
-    '',
-    info.phone?.trim() ? `Phone: ${info.phone.trim()}` : '',
-    info.email?.trim() ? `Email: ${info.email.trim()}` : '',
-    '',
-    ...bureauLines,
-    '',
-    `Re: Fair Credit Reporting Act dispute — ${issueMeta.label}`,
-    '',
-    'Dear Sir or Madam,',
-    '',
-    'For verification of my identity (please match to my credit file):',
-    `- Full name: ${fullName}`,
-  ]
-
-  if (info.dob?.trim()) {
-    lines.push(`- Date of birth: ${info.dob.trim()}`)
-  }
-  if (info.ssn?.trim()) {
-    lines.push(`- Social Security number (last four digits only): ${info.ssn.trim()}`)
-  }
-  lines.push(`- Current mailing address: ${[street, cityLine].filter(Boolean).join(', ')}`)
-  lines.push('', 'I am requesting an investigation under 15 U.S.C. § 1681i.', '')
-
-  if (forBureau.length > 0) {
-    lines.push(
-      `Attached or referenced materials include credit-report file(s) for review: ${forBureau.map((u) => u.file_name).join('; ')}.`,
-      '',
-    )
-  }
-
-  if (accountSpecific) {
-    lines.push(accountSpecific, '')
-  }
-
-  lines.push(disputePara, '')
-
-  if (!accountSpecific) {
-    lines.push(
-      `I dispute the accuracy or completeness of reported information for this category (${issueMeta.label}) on my ${agencyName} consumer report and request your reinvestigation.`,
-      '',
-    )
-  }
-
-  lines.push(
-    'Please complete a reasonable reinvestigation under the Fair Credit Reporting Act. If any disputed item cannot be verified as accurate and complete, delete or correct it and provide me the results and an updated report disclosure as required by law.',
-    '',
-    'I have enclosed or attached copies of identifying documents as referenced above. I am keeping a copy of this dispute.',
-    '',
-    'Respectfully,',
-    '',
-    fullName,
-    street,
-    cityLine,
-  )
-
-  if (info.phone?.trim()) {
-    lines.push(`Phone: ${info.phone.trim()}`)
-  }
-  if (info.email?.trim()) {
-    lines.push(`Email: ${info.email.trim()}`)
-  }
-
-  return lines
-    .filter((line, i, arr) => !(line === '' && arr[i + 1] === ''))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
 }
 
 function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
@@ -197,50 +73,52 @@ function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAg
   const issues = normalizedRequest.issues?.length ? normalizedRequest.issues : Object.keys(ISSUES)
   const info = normalizedRequest.info || {}
   const issueDetails = normalizedRequest.issueDetails || {}
+  const letterType = normalizedRequest.letterType || 'bureau_initial'
+  const typeMeta = LETTER_TYPE_META[letterType] || LETTER_TYPE_META.bureau_initial
   const letterList = []
 
   for (const agency of agencies) {
     const forBureau = uploadsForAgency(resolvedUploads, agency)
-    const extracted = extractedByAgency[agency] || { text: '', hadImageOnly: false, pdfFilesTried: 0 }
-    const agencyName = AGENCIES[agency] || agency
-    const bureauMailLines = BUREAU_MAILING[agency] || []
+    void (extractedByAgency[agency] || {}) // raw text is intentionally not pasted into letters; PR 3 stores it on credit_reports
 
     for (const issue of issues) {
       const issueMeta = ISSUES[issue] || { label: issue }
       const issueDetail = issueDetails[issue] || null
 
-      const disputePara =
-        ISSUE_DISPUTE_PARAGRAPH[issue]?.(agencyName) || ISSUE_DISPUTE_PARAGRAPH.late(agencyName)
-
-      const text = buildLetterSections({
-        agencyName,
-        bureauMailLines,
-        disputePara,
-        extracted,
-        forBureau,
+      const text = buildLetterText({
+        type: letterType,
+        agency,
         info,
-        issueDetail,
         issueMeta,
+        issueDetail,
+        forBureau,
       })
 
       letterList.push({
         agency,
         issue,
-        subject: `${agencyName} — ${issueMeta.label}: dispute letter draft`,
+        subject: letterSubject({ type: letterType, agency, issueMeta }),
         text,
       })
     }
   }
 
+  const summary = `${typeMeta.label} drafts (${typeMeta.citation}). Read every line carefully before mailing — accuracy is your responsibility. ${
+    typeMeta.targetKind === 'bureau'
+      ? 'Each letter is addressed to the bureau and ready to mail.'
+      : typeMeta.targetKind === 'cfpb'
+        ? 'CFPB complaints are submitted online at consumerfinance.gov/complaint — paste the generated text into the portal fields.'
+        : 'Replace the bracketed furnisher / collector / creditor address before mailing — confirm the current mailing address on the company\'s website.'
+  }`
+
   return JSON.stringify({
     recommendations: [
       'Read every line of each letter before mailing — accuracy is your responsibility.',
-      'Upload the bureau\u2019s official PDF (not a photo) and label it for the right bureau so future drafts can cite specific tradelines.',
-      'Keep proof of mailing through each bureau\u2019s official dispute channel (certified mail with return receipt is the standard).',
+      'Mail via certified mail with return receipt; keep your green card and tracking receipt.',
+      'Wait at least 30 days before sending the next round (MOV, furnisher, CFPB).',
     ],
     letters: letterList,
-    summary:
-      'Letters are built from FCRA-aligned templates plus the account details you entered in the wizard. Tradeline-level parsing of uploaded reports is rolling out next; for now, fill in creditor and account details on the Accounts step for the most specific letters.',
+    summary,
   })
 }
 

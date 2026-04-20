@@ -60,6 +60,44 @@ describe('normalizeGenerationRequest', () => {
     expect(result.issues).toEqual(['late', 'dup'])
     expect(result.fileIds).toEqual(['11111111-1111-4111-8111-111111111111'])
     expect(result.info.email).toBe('user@example.com')
+    expect(result.letterType).toBe('bureau_initial')
+  })
+
+  it('accepts a valid letterType and rejects unknown ones', () => {
+    const result = normalizeGenerationRequest({
+      agencies: ['equifax'],
+      files: [{ id: '11111111-1111-4111-8111-111111111111' }],
+      info: {
+        address: '1 Main',
+        city: 'X',
+        email: 'jane@example.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        state: 'NY',
+        zip: '10001',
+      },
+      issues: ['late'],
+      letterType: 'mov',
+    })
+    expect(result.letterType).toBe('mov')
+
+    expect(() =>
+      normalizeGenerationRequest({
+        agencies: ['equifax'],
+        files: [{ id: '11111111-1111-4111-8111-111111111111' }],
+        info: {
+          address: '1 Main',
+          city: 'X',
+          email: 'jane@example.com',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          state: 'NY',
+          zip: '10001',
+        },
+        issues: ['late'],
+        letterType: 'pirate-letter',
+      }),
+    ).toThrow(/Letter type/)
   })
 
   it('rejects malformed or abusive payloads', () => {

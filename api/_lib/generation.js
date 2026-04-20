@@ -1,4 +1,5 @@
 import { ApiError } from './http.js'
+import { LETTER_TYPES } from './letter-templates.js'
 import {
   ALLOWED_AGENCIES,
   ALLOWED_ISSUES,
@@ -55,9 +56,12 @@ export function normalizeGenerationRequest(body) {
 
   assertHasLetterSource(fileIds, issueDetails, issues)
 
+  const letterType = normalizeLetterType(body.letterType)
+
   return {
     agencies,
     fileIds,
+    letterType,
     info: {
       firstName,
       lastName,
@@ -73,6 +77,16 @@ export function normalizeGenerationRequest(body) {
     issueDetails,
     issues,
   }
+}
+
+/** Validate the optional letterType field. Defaults to bureau_initial. */
+function normalizeLetterType(value) {
+  if (value == null || value === '') return 'bureau_initial'
+  const normalized = sanitizeText(value, { maxLength: 32 }).toLowerCase()
+  if (!LETTER_TYPES.includes(normalized)) {
+    throw new ApiError(400, 'Letter type is invalid.')
+  }
+  return normalized
 }
 
 function sanitizeIssueDetailsMap(body, issues) {

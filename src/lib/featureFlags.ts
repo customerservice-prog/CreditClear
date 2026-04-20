@@ -55,10 +55,10 @@ export const FEATURE_FLAGS = {
   letter_types_six: {
     id: 'letter_types_six',
     label: '6 dispute letter types',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Bureau initial, MOV, furnisher §1681s-2(b), debt validation §1692g, goodwill, and CFPB complaint templates.',
-    eta: 'Available to founding members',
+    eta: '',
     route: '/letter-types',
     icon: '✉️',
   },
