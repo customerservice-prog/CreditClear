@@ -231,13 +231,13 @@ a{color:inherit}
 .app-note.info{background:rgba(0,229,160,.07);border-color:rgba(0,229,160,.18);color:var(--green)}
 
 .progress{display:flex;align-items:flex-start;justify-content:center;margin-bottom:44px}
-.si{flex:1;max-width:130px;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.si{flex:1;min-width:0;max-width:160px;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
 .si:not(:last-child)::after{content:'';position:absolute;top:13px;left:calc(50% + 13px);right:calc(-50% + 13px);height:1px;background:var(--border2);transition:background .4s}
 .si.done:not(:last-child)::after,.si.active:not(:last-child)::after{background:linear-gradient(90deg,var(--gold),var(--border2))}
 .sc{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);background:var(--bg2);transition:all .3s;z-index:1;font-weight:500}
 .si.active .sc{border-color:var(--gold);color:var(--gold);background:var(--gold-l);box-shadow:0 0 18px rgba(201,168,76,.22)}
 .si.done .sc{border-color:var(--green);background:rgba(0,229,160,.1);color:var(--green)}
-.sl{font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.07em;text-align:center;white-space:nowrap}
+.sl{font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.06em;text-align:center;line-height:1.25;white-space:normal;word-break:break-word}
 .si.active .sl{color:var(--gold)}.si.done .sl{color:var(--green)}
 
 .card{background:linear-gradient(145deg,rgba(255,255,255,.042),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:22px;padding:40px;box-shadow:0 36px 72px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.055);animation:fu .38s ease}

@@ -19,10 +19,11 @@ import {
   STEPS,
   generationPhaseForMessage,
 } from '../lib/constants'
+import { validateFileCoverageForAgencies } from '../lib/reportCoverage'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import { letterCardElementId } from '../lib/issueActionGuides'
-import { getPersonalFieldErrors, isImageUploadMime } from '../lib/validators'
+import { getPersonalFieldErrors, isImageUploadMime, issueHasTradelineDetail } from '../lib/validators'
 import type {
   AgencyId,
   AppInfo,
@@ -212,7 +213,16 @@ export function AppPage({
             Full auto-parsing from PDFs/screenshots is planned.
           </div>
         ) : null}
-        {billingMessage ? <div className="app-note error">{billingMessage}</div> : null}
+        {billingMessage &&
+        !(
+          (appState.letterType === 'bureau_initial' ||
+            appState.letterType === 'mov' ||
+            appState.letterType === 'cfpb') &&
+          appState.step === 3 &&
+          billingMessage === BUREAU_LETTER_REQUIREMENTS_HINT
+        ) ? (
+          <div className="app-note error">{billingMessage}</div>
+        ) : null}
 
         {!canAccessApp ? (
           <div className="price-wrap">
@@ -1069,6 +1079,19 @@ function renderWizardStep({
     appState.letterType === 'mov' ||
     appState.letterType === 'cfpb'
 
+  const coverageWarning =
+    bureauOneLetterPerBureau && appState.agencies.length > 0
+      ? validateFileCoverageForAgencies(appState.agencies, appState.files)
+      : null
+
+  const issuesMissingCreditors = bureauOneLetterPerBureau
+    ? appState.issues.filter((id) => !issueHasTradelineDetail(appState.issueDetails[id]))
+    : []
+
+  const missingCreditorLabels = issuesMissingCreditors
+    .map((id) => ISSUES.find((i) => i.id === id)?.label ?? id)
+    .join(', ')
+
   return (
     <div className="card">
       <div className="card-t">Upload your credit report (screenshots or files)</div>
@@ -1082,7 +1105,19 @@ function renderWizardStep({
             marginBottom: 12,
           }}
         >
-          {BUREAU_LETTER_REQUIREMENTS_HINT}
+          <p style={{ margin: 0 }}>{BUREAU_LETTER_REQUIREMENTS_HINT}</p>
+          <ul style={{ fontSize: 13, lineHeight: 1.45, margin: '12px 0 0', paddingLeft: 18 }}>
+            <li style={{ color: coverageWarning ? 'rgba(248, 180, 120, 0.98)' : 'rgba(160, 220, 170, 0.95)' }}>
+              {coverageWarning
+                ? `Labeled uploads: ${coverageWarning}`
+                : 'Labeled uploads: each bureau you selected has a matching file (or one Combined file).'}
+            </li>
+            <li style={{ color: issuesMissingCreditors.length ? 'rgba(248, 180, 120, 0.98)' : 'rgba(160, 220, 170, 0.95)' }}>
+              {issuesMissingCreditors.length
+                ? `Creditor / account row: still need details for — ${missingCreditorLabels}. Use ← Back to Step 3.`
+                : 'Creditor / account row: every selected category has at least one creditor or account line.'}
+            </li>
+          </ul>
         </div>
       ) : null}
       <div className="card-s">

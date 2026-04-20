@@ -50,7 +50,7 @@ export function validateMailingAddressForLetters(info: AppInfo) {
   return null
 }
 
-function issueHasTradelineDetail(detail: IssueAccountDetail | undefined): boolean {
+export function issueHasTradelineDetail(detail: IssueAccountDetail | undefined): boolean {
   if (!detail) {
     return false
   }

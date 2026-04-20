@@ -1494,6 +1494,7 @@ function AppRoutes() {
                   }))
                 }
                 onGoToStep={(step) => {
+                  setBillingMessage('')
                   setAppState((previous) => ({ ...previous, step }))
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }}
