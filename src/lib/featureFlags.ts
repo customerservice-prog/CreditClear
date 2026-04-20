@@ -110,6 +110,16 @@ export const FEATURE_FLAGS = {
     route: '/letter-types',
     icon: '🔁',
   },
+  compliance_disclosures: {
+    id: 'compliance_disclosures',
+    label: 'CROA + FCRA disclosures and data rights',
+    status: 'live',
+    description:
+      'Required CROA disclosures, the federal Notice of Cancellation, one-click data export, and self-serve account deletion with a 7-day grace window.',
+    eta: '',
+    route: '/disclosures',
+    icon: '🛡️',
+  },
   stripe_checkout: {
     id: 'stripe_checkout',
     label: 'Subscription checkout',

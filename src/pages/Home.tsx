@@ -592,6 +592,7 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
           <a href="/disclaimer">Disclaimer</a>
+          <a href="/disclosures">Disclosures</a>
           <Link to="/contact">Contact</Link>
         </div>
         <div className="fcopy">© 2026 CreditClear AI — Educational and document assistance only.</div>

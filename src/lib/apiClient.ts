@@ -181,6 +181,39 @@ export async function joinWaitlistRequest(body: {
   }
 }
 
+export async function deleteAccountRequest(body: { confirm: string; reason?: string }) {
+  return apiRequest<{ ok: boolean; grace_period_days: number; message: string }>(
+    '/api/account-delete',
+    body,
+  )
+}
+
+/**
+ * Triggers a JSON download of the user's full data export. Bypasses the
+ * normal apiRequest helper because the response is a streamed file
+ * attachment, not a JSON envelope.
+ */
+export async function downloadAccountExport() {
+  const token = await getAccessTokenForApi()
+  const response = await fetch('/api/account-export', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(text || `Could not download your export (${response.status}).`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `creditclear-export-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 5_000)
+}
+
 export async function parseUploadRequest(body: { uploadId: string }) {
   return apiRequest<{
     reportId: string

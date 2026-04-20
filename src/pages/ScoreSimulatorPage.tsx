@@ -57,6 +57,7 @@ export function ScoreSimulatorPage({ onHome, onSignIn, onStartTrial }: ScoreSimu
             <a href={`${SITE_URL}/privacy`}>Privacy</a>
             <a href={`${SITE_URL}/terms`}>Terms</a>
             <a href={`${SITE_URL}/disclaimer`}>Disclaimer</a>
+            <a href={`${SITE_URL}/disclosures`}>Disclosures</a>
           </div>
           <div className="fcopy">© 2026 CreditClear AI — Educational and document assistance only.</div>
         </footer>

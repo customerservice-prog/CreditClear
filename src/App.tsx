@@ -87,6 +87,11 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
     description: 'Important limitations and review responsibilities for CreditClear AI outputs.',
     title: 'Disclaimer | CreditClear AI',
   },
+  '/disclosures': {
+    description:
+      'Required CROA disclosures, the federal Notice of Cancellation, your Consumer Credit File Rights under state and federal law, and how to exercise your rights with CreditClear.',
+    title: 'Required Disclosures | CreditClear AI',
+  },
   '/login': {
     description: 'Sign in to access your saved disputes, billing details, and draft-generation workflow.',
     title: 'Log In | CreditClear AI',
@@ -1129,6 +1134,55 @@ function AppRoutes() {
                   title: 'Review Before Use',
                   text:
                     'Users must review every generated summary, recommendation, and letter before using it. If uploaded document analysis is incomplete or uncertain, users should verify all details independently.',
+                },
+              ]}
+            />
+          }
+        />
+        <Route
+          path="/disclosures"
+          element={
+            <LegalPage
+              onHome={() => navigate('/')}
+              onSignIn={() => navigate('/login')}
+              onStartTrial={() => navigate('/signup')}
+              subtitle="The disclosures CreditClear is required to give every user under the Credit Repair Organizations Act (CROA), the Fair Credit Reporting Act (FCRA), and applicable state laws."
+              title="Required Disclosures"
+              body={[
+                {
+                  title: 'Consumer Credit File Rights Under State and Federal Law',
+                  text:
+                    'You have a right to dispute inaccurate information in your credit report by contacting the credit bureau directly. It is unlawful for a credit repair organization to advise you to dispute information that you know to be accurate.\n\nYou have a right to obtain a copy of your credit report from a consumer credit reporting agency. You may be charged a reasonable fee, but there is no fee if you have been turned down for credit, employment, insurance, or a rental dwelling because of information in your report within the past 60 days. You are also entitled to receive a free copy of your report each year from each of the nationwide consumer reporting agencies at annualcreditreport.com.\n\nYou have the right to sue a credit repair organization that violates the Credit Repair Organizations Act (15 U.S.C. § 1679 et seq.). This law prohibits deceptive practices by credit repair organizations.\n\nYou have the right to cancel your contract with any credit repair organization for any reason within three (3) business days from the date you signed it.\n\nCredit bureaus are required to follow reasonable procedures to ensure that the information they report is accurate. However, mistakes may occur. You may, on your own, notify a credit bureau in writing that you dispute the accuracy of information in your credit file. The credit bureau must then reinvestigate and modify or remove inaccurate or incomplete information. The credit bureau may not charge any fee for this service.\n\nThe Federal Trade Commission regulates credit bureaus and credit repair organizations. For more information contact: Consumer Response Center, Federal Trade Commission, Washington, DC 20580.',
+                },
+                {
+                  title: 'Notice of Cancellation',
+                  text:
+                    'You may cancel this contract, without penalty or obligation, at any time before midnight of the third business day after the date on which you signed the contract.\n\nTo cancel this contract, mail or deliver a signed, dated copy of this Cancellation Notice, or any other written notice, to: CreditClear AI, ATTN: Cancellation, before midnight on the third business day. You may also email cancel@creditclearai.com from the address on your account with the subject line "CANCEL CONTRACT" and we will treat it as a written cancellation under CROA §1679e(b).\n\nI hereby cancel this transaction. ____________________ (Date)  ____________________ (Purchaser\'s signature)',
+                },
+                {
+                  title: 'Fee and Performance Disclosures',
+                  text:
+                    'CreditClear is rebuilding billing for a no-advance-fee model. While that work is in progress, we do not collect payment from new users. When billing reopens, we will charge only after a service has been rendered (e.g., after a letter is generated and made available for download), in compliance with CROA §1679b(b).\n\nCreditClear does not guarantee any specific result. We do not promise that any item will be removed from your credit report, that your credit score will increase, or that any creditor will respond favorably. Outcomes depend on the underlying facts and how the bureau, furnisher, or collector responds.',
+                },
+                {
+                  title: 'Service Scope',
+                  text:
+                    'CreditClear provides document-assistance and workflow tools. We help you organize disputes, draft FCRA-aligned letters from your inputs, and track your saved disputes. We are not a law firm, and nothing on this site is legal advice. If you need legal advice, consult an attorney licensed in your jurisdiction.',
+                },
+                {
+                  title: 'Your Right to Access Your Data',
+                  text:
+                    'You may export every record CreditClear stores about you at any time from your Settings page (Download my data). The export is a JSON file with your profile, subscription state, disputes, letters, uploads, parsed report data, and waitlist signups. Uploaded credit-report PDFs themselves stay in private storage; the export lists their paths so you can download them individually.',
+                },
+                {
+                  title: 'Your Right to Delete',
+                  text:
+                    'You may request permanent deletion of your CreditClear account and all associated data from your Settings page (Request account deletion). After confirmation, we hold the request for a 7-day grace window so that you can email support@creditclearai.com if you change your mind. After the grace window the deletion is irreversible.',
+                },
+                {
+                  title: 'Contact',
+                  text:
+                    'Questions about these disclosures, your data, or your rights: support@creditclearai.com. We respond within five business days.',
                 },
               ]}
             />

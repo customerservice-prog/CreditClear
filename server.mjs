@@ -14,6 +14,8 @@ const indexPath = path.join(distDir, 'index.html')
 const rawBodyRoutes = new Set(['/api/stripe-webhook', '/api/webhook'])
 
 const apiHandlers = {
+  '/api/account-delete': () => import('./api/account-delete.js'),
+  '/api/account-export': () => import('./api/account-export.js'),
   '/api/bootstrap-user': () => import('./api/bootstrap-user.js'),
   '/api/create-account': () => import('./api/create-account.js'),
   '/api/create-checkout': () => import('./api/create-checkout.js'),
@@ -81,6 +83,7 @@ Sitemap: ${SITE_ORIGIN}/sitemap.xml
         '/privacy',
         '/terms',
         '/disclaimer',
+        '/disclosures',
         '/blog',
         ...BLOG_POSTS.map((post) => `/blog/${post.slug}`),
         '/dispute/equifax',
