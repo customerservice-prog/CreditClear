@@ -75,6 +75,25 @@ export async function createCheckoutRequest() {
   return apiRequest<{ url: string }>('/api/create-checkout')
 }
 
+export interface BillingStatus {
+  checkout_open: boolean
+  plan_name: string
+  monthly_price_cents: number | null
+}
+
+/**
+ * Public, unauthenticated marketing-page lookup so /pricing can decide
+ * whether to render the "Start your subscription" button or fall back to the
+ * waitlist card. Mirrors the same env flag used by /api/create-checkout.
+ */
+export async function getBillingStatus(): Promise<BillingStatus> {
+  const response = await fetch('/api/billing-status', { method: 'GET' })
+  if (!response.ok) {
+    throw new Error(`Could not load billing status (${response.status}).`)
+  }
+  return (await response.json()) as BillingStatus
+}
+
 export async function createPortalRequest() {
   return apiRequest<{ url: string }>('/api/create-portal')
 }

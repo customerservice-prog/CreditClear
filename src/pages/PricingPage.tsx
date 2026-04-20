@@ -1,15 +1,16 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { WaitlistCard } from '../components/WaitlistCard'
+import { getBillingStatus, type BillingStatus } from '../lib/apiClient'
 import { SITE_URL } from '../lib/site'
 
 const PRICING_FAQ = [
   {
     answer:
-      "New subscription checkouts are paused while we migrate billing to a CROA-compliant, no-advance-fee, bill-per-letter model. Join the founders' waitlist on this page and we'll email you the moment checkout reopens. Existing subscribers keep their current plan with no changes.",
-    question: 'Why is checkout closed right now?',
+      "We migrated billing to a CROA-compliant model: no advance fees, transparent monthly subscription, cancel any time, plus a 3-day Notice of Cancellation as required by federal law. Read the full rules on the disclosures page.",
+    question: 'How does CreditClear bill me?',
   },
   {
     answer:
@@ -39,7 +40,37 @@ interface PricingPageProps {
   onStartTrial: () => void
 }
 
+function formatMoney(cents: number | null): string {
+  if (cents === null || !Number.isFinite(cents)) return ''
+  const dollars = cents / 100
+  return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`
+}
+
 export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps) {
+  const [billing, setBilling] = useState<BillingStatus | null>(null)
+  const [billingLoaded, setBillingLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const status = await getBillingStatus()
+        if (!cancelled) setBilling(status)
+      } catch {
+        if (!cancelled) setBilling({ checkout_open: false, plan_name: 'CreditClear Pro', monthly_price_cents: null })
+      } finally {
+        if (!cancelled) setBillingLoaded(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const checkoutOpen = billing?.checkout_open === true
+  const priceLabel = billing?.monthly_price_cents ? formatMoney(billing.monthly_price_cents) : null
+  const planName = billing?.plan_name || 'CreditClear Pro'
+
   const structuredData = useMemo(() => {
     const faqEntities = PRICING_FAQ.map((item) => ({
       '@type': 'Question',
@@ -83,41 +114,131 @@ export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps
       <MarketingMain>
         <div className="hero" style={{ maxWidth: 900, paddingBottom: 24, textAlign: 'center' }}>
           <div className="hero-badge">
-            <div className="pulse-dot"></div> Founders&apos; waitlist open
+            <div className="pulse-dot"></div>{' '}
+            {!billingLoaded ? 'Checking availability…' : checkoutOpen ? 'Checkout is open' : 'Founders\u2019 waitlist open'}
           </div>
           <h1>
-            New checkout is <em>paused</em> while we rebuild billing
+            {checkoutOpen ? (
+              <>
+                Start your <em>{planName}</em> subscription
+              </>
+            ) : (
+              <>
+                New checkout is <em>paused</em> while we finish the rebuild
+              </>
+            )}
           </h1>
           <p className="hero-sub" style={{ margin: '0 auto', maxWidth: 720 }}>
-            We&apos;re moving CreditClear to a CROA-compliant, no-advance-fee, bill-per-letter model. Until that ships,
-            new subscriptions are closed. Join the founders&apos; waitlist below to lock in the lowest pricing
-            CreditClear will ever offer and get first access as features go live.
+            {checkoutOpen ? (
+              <>
+                Cancel any time, no advance fees, with a 3-day federal Notice of Cancellation as required by the Credit
+                Repair Organizations Act. Read the full <Link to="/disclosures">required disclosures</Link> before you
+                subscribe.
+              </>
+            ) : (
+              <>
+                We&apos;re finishing the CROA-compliant billing rebuild. Until checkout reopens, join the founders&apos;
+                waitlist to lock in the lowest pricing CreditClear will ever offer.
+              </>
+            )}
           </p>
         </div>
 
         <div className="section" style={{ paddingTop: 0 }}>
           <h2 className="sec-title" style={{ textAlign: 'center' }}>
-            Why we paused <em>new checkout</em>
+            {checkoutOpen ? (
+              <>
+                Subscribe to <em>{planName}</em>
+              </>
+            ) : (
+              <>
+                Why we paused <em>new checkout</em>
+              </>
+            )}
           </h2>
-          <p className="disc" style={{ maxWidth: 720, margin: '0 auto 20px', textAlign: 'center' }}>
-            The Credit Repair Organizations Act forbids charging consumers in advance for credit-repair services. The old
-            $49/month-up-front model was on the wrong side of that line for the kind of automated dispute work we&apos;re
-            now building. Rather than keep collecting before the new product is ready, we paused new signups and are
-            rebuilding billing to charge per letter mailed, after the work is done.
-          </p>
-          <p className="disc" style={{ maxWidth: 720, margin: '0 auto 28px', textAlign: 'center' }}>
-            If you were comparing DIY templates and law-adjacent services, the{' '}
-            <Link to="/blog/credit-repair-software-vs-diy-disputes">DIY vs software tradeoffs</Link> guide on the blog is
-            still the most honest read in the space.
-          </p>
-          <div className="price-wrap">
-            <WaitlistCard />
-          </div>
+          {checkoutOpen ? (
+            <>
+              <p className="disc" style={{ maxWidth: 720, margin: '0 auto 20px', textAlign: 'center' }}>
+                One subscription unlocks every live capability: tradeline-level dispute editing, all six dispute letter
+                templates (FCRA §611, MOV, furnisher §1681s-2(b), debt validation §1692g, goodwill, CFPB), automatic
+                round tracking with a 30-day FCRA response window, and one-click data export and account deletion.
+              </p>
+              <div className="price-wrap" style={{ display: 'grid', placeItems: 'center', gap: 16 }}>
+                <div
+                  className="card"
+                  style={{
+                    maxWidth: 460,
+                    width: '100%',
+                    padding: 24,
+                    border: '1px solid rgba(212, 175, 55, 0.4)',
+                    background: 'rgba(212, 175, 55, 0.06)',
+                  }}
+                >
+                  <div className="card-t" style={{ marginBottom: 4 }}>
+                    {planName}
+                  </div>
+                  {priceLabel ? (
+                    <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 6 }}>
+                      {priceLabel}
+                      <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.7, marginLeft: 4 }}>/month</span>
+                    </div>
+                  ) : null}
+                  <ul style={{ paddingLeft: 18, margin: '12px 0 16px' }}>
+                    <li>Unlimited disputes &amp; tradeline editing</li>
+                    <li>All 6 letter templates with statutory citations</li>
+                    <li>Automatic round tracking (Rounds 1–4)</li>
+                    <li>One-click data export &amp; account deletion</li>
+                    <li>3-day federal Notice of Cancellation</li>
+                  </ul>
+                  <button className="btn btn-gold" onClick={onStartTrial} style={{ width: '100%' }} type="button">
+                    Sign up &amp; start checkout
+                  </button>
+                  <p className="disc" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
+                    You&apos;ll create an account first, then be redirected to Stripe Checkout. Cancel any time from
+                    your <Link to="/billing">Billing page</Link>.
+                  </p>
+                </div>
+                <div style={{ opacity: 0.7, fontSize: 12 }}>
+                  Not ready to subscribe? <a href="#waitlist">Join the waitlist instead.</a>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="disc" style={{ maxWidth: 720, margin: '0 auto 20px', textAlign: 'center' }}>
+                The Credit Repair Organizations Act forbids charging consumers in advance for credit-repair services.
+                Rather than keep collecting before the new product is ready, we paused new signups and rebuilt billing
+                to comply.
+              </p>
+              <p className="disc" style={{ maxWidth: 720, margin: '0 auto 28px', textAlign: 'center' }}>
+                If you were comparing DIY templates and law-adjacent services, the{' '}
+                <Link to="/blog/credit-repair-software-vs-diy-disputes">DIY vs software tradeoffs</Link> guide on the
+                blog is still the most honest read in the space.
+              </p>
+              <div className="price-wrap">
+                <WaitlistCard />
+              </div>
+            </>
+          )}
           <p className="disc" style={{ marginTop: 16, textAlign: 'center', opacity: 0.7 }}>
-            Existing subscribers: nothing changes for you. Manage your subscription from the{' '}
-            <Link to="/billing">Billing page</Link> as usual.
+            Existing subscribers: manage your subscription from the <Link to="/billing">Billing page</Link> as usual.
           </p>
         </div>
+
+        {checkoutOpen ? (
+          <div className="section" id="waitlist" style={{ paddingTop: 0, maxWidth: 720, margin: '0 auto' }}>
+            <h2 className="sec-title">
+              Or join the <em>founders&apos; updates list</em>
+            </h2>
+            <p className="disc">
+              We email roughly twice a month with product updates, new letter templates, and credit-repair education.
+              No card required, unsubscribe any time.
+            </p>
+            <div className="price-wrap">
+              <WaitlistCard />
+            </div>
+          </div>
+        ) : null}
 
         <div className="section" style={{ paddingTop: 0, maxWidth: 820, margin: '0 auto' }}>
           <h2 className="sec-title">

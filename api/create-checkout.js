@@ -6,14 +6,19 @@ import { ensureStripeCustomer, stripe } from './_lib/stripe.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
 
 /**
- * Stripe checkout for new subscriptions is paused while we migrate to a
- * no-advance-fee, bill-per-letter model (CROA-compliant). Existing subscribers
- * keep their access — only NEW signups are blocked. The marketing site routes
- * users to /pricing where they can join the founders' waitlist instead, so this
- * endpoint should never fire from normal navigation; it is a safety net for
- * stale tabs that still have the old checkout call cached.
+ * New-subscription checkout can be paused from the environment without a
+ * redeploy by setting `CHECKOUT_PAUSED=true`. When paused, callers receive a
+ * 503 with the `checkout_paused` code and the marketing site routes them to
+ * the founders' waitlist on /pricing instead. Existing subscribers always
+ * keep access regardless of this flag — only NEW signups are blocked.
+ *
+ * Default is `false` (open) now that round tracking and the CROA / FCRA
+ * compliance disclosures are live (PR 7 + PR 10).
  */
-const NEW_CHECKOUT_PAUSED = true
+function isCheckoutPaused() {
+  const raw = (process.env.CHECKOUT_PAUSED || '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on'
+}
 
 export default async function handler(request, response) {
   if (applyCors(request, response)) {
@@ -26,7 +31,7 @@ export default async function handler(request, response) {
   }
 
   try {
-    if (NEW_CHECKOUT_PAUSED) {
+    if (isCheckoutPaused()) {
       response.status(503).json({
         error:
           "We've paused new subscription checkouts while we upgrade billing to a per-letter model. Your existing subscription (if any) is unaffected. Join the founders' waitlist on the pricing page to be the first to know when checkout reopens.",

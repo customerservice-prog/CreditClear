@@ -857,6 +857,21 @@ function AppRoutes() {
       { ...(inserted.data as DisputeRecord), letter_count: letters.length },
       ...previous,
     ])
+
+    const roundInsert = await supabase.from('dispute_rounds').insert({
+      dispute_id: disputeId,
+      letter_type: appState.letterType || 'bureau_initial',
+      round_number: 1,
+      status: 'drafted',
+      user_id: authUser.id,
+    })
+    if (roundInsert.error) {
+      const msg = String(roundInsert.error.message || '')
+      if (!/relation .* does not exist|schema cache/i.test(msg)) {
+        console.warn('Could not seed dispute round 1:', roundInsert.error)
+      }
+    }
+
     trackEvent('dispute_saved', { letters: letters.length, uploads: appState.files.length })
   }
 
@@ -1446,6 +1461,7 @@ function AppRoutes() {
                 onSignOut={() => void signOutUser()}
                 statusLabel={subscription.statusLabel}
                 userDisplayName={userDisplayName}
+                userId={authUser.id}
               />
             ) : (
               <Navigate replace to="/login" />
@@ -1674,6 +1690,7 @@ function DisputeDetailRoute({
   onSignOut,
   statusLabel,
   userDisplayName,
+  userId,
 }: {
   appMessage: string
   detail: DisputeDetail | null
@@ -1687,6 +1704,7 @@ function DisputeDetailRoute({
   onSignOut: () => void
   statusLabel: string
   userDisplayName: string
+  userId?: string | null
 }) {
   const { id } = useParams()
   const [loadedDetail, setLoadedDetail] = useState<DisputeDetail | null>(detail)
@@ -1725,6 +1743,7 @@ function DisputeDetailRoute({
         onSignOut={onSignOut}
         statusLabel={statusLabel}
         userDisplayName={userDisplayName}
+        userId={userId}
       />
     </>
   )

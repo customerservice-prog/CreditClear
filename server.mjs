@@ -16,6 +16,7 @@ const rawBodyRoutes = new Set(['/api/stripe-webhook', '/api/webhook'])
 const apiHandlers = {
   '/api/account-delete': () => import('./api/account-delete.js'),
   '/api/account-export': () => import('./api/account-export.js'),
+  '/api/billing-status': () => import('./api/billing-status.js'),
   '/api/bootstrap-user': () => import('./api/bootstrap-user.js'),
   '/api/create-account': () => import('./api/create-account.js'),
   '/api/create-checkout': () => import('./api/create-checkout.js'),

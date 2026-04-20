@@ -103,11 +103,11 @@ export const FEATURE_FLAGS = {
   round_tracking_2_4: {
     id: 'round_tracking_2_4',
     label: 'Rounds 2–4 (MOV, furnisher, CFPB)',
-    status: 'coming_soon',
+    status: 'live',
     description:
-      'Automated 30-day follow-ups for method-of-verification, direct-to-furnisher, and CFPB-complaint letters.',
-    eta: 'Unlocks 30 days after Round 1 is mailed',
-    route: '/letter-types',
+      'Track all four FCRA dispute rounds per dispute — initial bureau letter, method-of-verification, direct-to-furnisher, and CFPB complaint — with the 30-day response window calculated automatically.',
+    eta: '',
+    route: '/dashboard',
     icon: '🔁',
   },
   compliance_disclosures: {
@@ -123,10 +123,10 @@ export const FEATURE_FLAGS = {
   stripe_checkout: {
     id: 'stripe_checkout',
     label: 'Subscription checkout',
-    status: 'disabled',
+    status: 'live',
     description:
-      "We're upgrading the product to a no-advance-fee, bill-per-letter model. Existing subscribers keep their access.",
-    eta: 'New signups reopen when round-tracking + compliance are live',
+      'CROA-compliant subscription checkout with cancel-any-time, no advance fees, and a 3-day federal Notice of Cancellation. Operators can pause new signups via the CHECKOUT_PAUSED env flag.',
+    eta: '',
     route: '/pricing',
     icon: '💳',
   },
@@ -143,7 +143,7 @@ export function isComingSoon(id: FeatureId): boolean {
 }
 
 export function isDisabled(id: FeatureId): boolean {
-  return FEATURE_FLAGS[id].status === 'disabled'
+  return (FEATURE_FLAGS[id].status as FeatureStatus) === 'disabled'
 }
 
 export function statusBadgeLabel(status: FeatureStatus): string {
