@@ -22,55 +22,21 @@
  * Safety:
  *   CONFIRM=DELETE_USER_REPORTS
  *
- * Optional:
- *   DRY_RUN=1                       — print counts only, no deletes
+ * Preview (no deletes) — pass flag only; ignores stray DRY_RUN in parent shell:
+ *   node scripts/wipe-user-reports.mjs --dry-run
  */
 
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
+import { loadRepoDotEnv } from './load-repo-dotenv.mjs'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const root = path.join(__dirname, '..')
-
-function loadDotEnv() {
-  const envPath = path.join(root, '.env')
-  if (!fs.existsSync(envPath)) {
-    return
-  }
-  const raw = fs.readFileSync(envPath, 'utf8')
-  for (const line of raw.split('\n')) {
-    const t = line.trim()
-    if (!t || t.startsWith('#')) {
-      continue
-    }
-    const i = t.indexOf('=')
-    if (i === -1) {
-      continue
-    }
-    const k = t.slice(0, i).trim()
-    let v = t.slice(i + 1).trim()
-    if (
-      (v.startsWith('"') && v.endsWith('"')) ||
-      (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      v = v.slice(1, -1)
-    }
-    if (process.env[k] === undefined) {
-      process.env[k] = v
-    }
-  }
-}
-
-loadDotEnv()
+loadRepoDotEnv()
 
 const DATABASE_URL = process.env.DATABASE_URL
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const TARGET_EMAIL = (process.env.TARGET_EMAIL || process.env.ADMIN_EMAIL || '').trim()
-const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
+const dryRun = process.argv.includes('--dry-run')
 const CONFIRM = process.env.CONFIRM
 
 const BUCKET = 'private-uploads'
@@ -124,7 +90,7 @@ async function removeDbPaths(supabase, dbPaths) {
 
 async function main() {
   if (CONFIRM !== 'DELETE_USER_REPORTS') {
-    die('Refusing to run: set CONFIRM=DELETE_USER_REPORTS (use DRY_RUN=1 to preview only).')
+    die('Refusing to run: set CONFIRM=DELETE_USER_REPORTS (preview: add --dry-run to the command).')
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {
     die('Missing SUPABASE_URL (or VITE_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY.')
@@ -175,8 +141,8 @@ async function main() {
 
       console.log('Rows:', { credit_reports: reportCount, uploads: uploadCount })
 
-      if (DRY_RUN) {
-        console.log('DRY_RUN: would remove', dbPaths.length, 'paths from DB list + folder sweep')
+      if (dryRun) {
+        console.log('--dry-run: would remove', dbPaths.length, 'paths from DB list + folder sweep')
         console.log('Sample paths:', dbPaths.slice(0, 5))
         return
       }
@@ -240,8 +206,8 @@ async function main() {
 
     console.log('Rows:', { credit_reports: reportCount, uploads: uploadCount })
 
-    if (DRY_RUN) {
-      console.log('DRY_RUN: would remove', dbPaths.length, 'paths from DB list + folder sweep')
+    if (dryRun) {
+      console.log('--dry-run: would remove', dbPaths.length, 'paths from DB list + folder sweep')
       console.log('Sample paths:', dbPaths.slice(0, 5))
       return
     }

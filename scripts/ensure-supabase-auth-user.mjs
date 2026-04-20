@@ -3,12 +3,15 @@
  * Use the same email you log in with on /login; that email also gets complimentary access
  * when it matches ADMIN_EMAIL or OWNER_FREE_ACCESS_EMAILS (server + dashboard UI).
  *
- * Usage (local):  set env from Railway or .env, then:
+ * Usage (local):  repo-root `.env` is loaded automatically if present; or export vars, then:
  *   npm run auth:sync-admin
  *
  * Usage (Railway): railway run npm run auth:sync-admin
  */
 import { createClient } from '@supabase/supabase-js'
+import { loadRepoDotEnv } from './load-repo-dotenv.mjs'
+
+loadRepoDotEnv()
 
 const url = process.env.SUPABASE_URL?.trim()
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
