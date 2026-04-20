@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { applyCors } from './_lib/cors.js'
 import { parseCreditReportText } from './_lib/credit-report-parser.js'
 import { deleteExistingReport, findExistingReportForUpload, persistParsedReport } from './_lib/credit-report-store.js'
+import { extractTextFromImageBuffer, MAX_IMAGE_PARSE_BYTES } from './_lib/image-ocr.js'
 import { ApiError, sendError } from './_lib/http.js'
 import { assertRateLimit } from './_lib/rate-limit.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
@@ -14,21 +15,12 @@ const BUCKET = 'private-uploads'
 const MAX_PDF_BYTES = 9 * 1024 * 1024
 
 /**
- * Parse an already-uploaded PDF into structured tradeline / inquiry / public-
- * record rows. Idempotent: re-running for the same upload replaces the prior
- * credit_reports row (and its children, via FK cascade) instead of stacking.
+ * Parse an already-uploaded PDF or credit-report screenshot into structured
+ * tradeline / inquiry / public-record rows. Screenshots run through OCR
+ * (tesseract.js + sharp). Idempotent: re-running replaces the prior row.
  *
  * Request body: { uploadId: uuid }
  * Response:     { reportId, bureau, tradelineCount, inquiryCount, publicRecordCount }
- *
- * Errors:
- *  401 — not authenticated
- *  403 — upload does not belong to caller
- *  404 — upload not found
- *  409 — upload is not a PDF (image OCR is intentionally not in scope here)
- *  413 — PDF exceeds the per-file byte limit
- *  422 — bureau could not be detected (parser returned null)
- *  500 — anything DB-side
  */
 export default async function handler(request, response) {
   if (applyCors(request, response)) {
@@ -63,13 +55,20 @@ export default async function handler(request, response) {
 
     const upload = uploadResult.data
     const mime = String(upload.mime_type || '').toLowerCase()
-    if (mime !== 'application/pdf') {
-      throw new ApiError(409, 'Only PDF uploads can be parsed automatically right now.', {
+    const isPdf = mime === 'application/pdf'
+    const isImage = mime.startsWith('image/')
+
+    if (!isPdf && !isImage) {
+      throw new ApiError(409, 'Only PDF or image uploads (PNG, JPG, WebP, HEIC, etc.) can be parsed.', {
         expose: true,
       })
     }
-    if (upload.file_size > MAX_PDF_BYTES) {
+
+    if (isPdf && upload.file_size > MAX_PDF_BYTES) {
       throw new ApiError(413, 'PDF is too large to parse automatically.', { expose: true })
+    }
+    if (isImage && upload.file_size > MAX_IMAGE_PARSE_BYTES) {
+      throw new ApiError(413, 'Image is too large to parse automatically.', { expose: true })
     }
 
     const downloadResult = await supabaseAdmin.storage.from(BUCKET).download(upload.file_path)
@@ -79,19 +78,39 @@ export default async function handler(request, response) {
     const buffer = Buffer.from(await downloadResult.data.arrayBuffer())
 
     let extractedText = ''
-    try {
-      const parsed = await pdfParse(buffer)
-      extractedText = typeof parsed.text === 'string' ? parsed.text : ''
-    } catch {
-      throw new ApiError(422, 'Could not read text from this PDF (it may be a scanned image).', {
-        expose: true,
-      })
+    let parseSource = 'pdf_text'
+
+    if (isPdf) {
+      try {
+        const parsed = await pdfParse(buffer)
+        extractedText = typeof parsed.text === 'string' ? parsed.text : ''
+      } catch {
+        throw new ApiError(422, 'Could not read text from this PDF (it may be a scanned image — try uploading screenshots as images instead).', {
+          expose: true,
+        })
+      }
+    } else {
+      parseSource = 'image_ocr'
+      try {
+        extractedText = await extractTextFromImageBuffer(buffer, mime)
+      } catch (err) {
+        if (err.code === 'IMAGE_DECODE_FAILED') {
+          throw new ApiError(422, 'Could not decode this image. Try PNG or JPG, or re-export the screenshot.', {
+            expose: true,
+          })
+        }
+        throw err
+      }
     }
 
     if (!extractedText.trim()) {
-      throw new ApiError(422, 'No text could be extracted from this PDF (likely scanned image).', {
-        expose: true,
-      })
+      throw new ApiError(
+        422,
+        isImage
+          ? 'No text could be read from this image. Try a sharper, brighter screenshot or a downloaded PDF.'
+          : 'No text could be extracted from this PDF (likely scanned image — upload pages as photos instead).',
+        { expose: true },
+      )
     }
 
     const bureauHint = normalizeBureauHint(upload.report_bureau)
@@ -129,6 +148,7 @@ export default async function handler(request, response) {
           tradelines: persisted.tradelineCount,
           inquiries: persisted.inquiryCount,
           publicRecords: persisted.publicRecordCount,
+          parseSource,
         },
       })
 
@@ -138,6 +158,7 @@ export default async function handler(request, response) {
       tradelineCount: persisted.tradelineCount,
       inquiryCount: persisted.inquiryCount,
       publicRecordCount: persisted.publicRecordCount,
+      parseSource,
     })
   } catch (error) {
     sendError(response, error, 'Could not parse this credit report.')

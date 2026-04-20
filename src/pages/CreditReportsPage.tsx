@@ -150,7 +150,7 @@ export function CreditReportsPage({
       onHomeClick={onShowHome}
       onSignOut={onSignOut}
       statusLabel={statusLabel}
-      subheading="Upload phone screenshots, photos, or PDFs from your credit report. Screenshots are first-class — PDFs additionally unlock automatic tradeline extraction when parsed."
+      subheading="Upload phone screenshots, photos, or PDFs from your credit report. Parse any PDF or image to run tradeline extraction (OCR for screenshots)."
       userDisplayName={userDisplayName}
     >
       <div className="card" style={{ marginBottom: 18 }}>
@@ -193,7 +193,7 @@ export function CreditReportsPage({
             </div>
             <div className="card-s">
               PNG, JPG, WebP, HEIC, or PDF — from any bureau site, MyFICO, Credit Karma, or annualcreditreport.com. We attach
-              every file to your dispute. PDFs can be parsed here for tradeline counts; screenshots stay as your visual proof.
+              every file to your dispute. Use Parse or Re-parse on any row to extract tradelines (OCR for images).
             </div>
             <div className="btn-row" style={{ marginTop: 10 }}>
               <button className="btn btn-gold" onClick={() => navigate('/disputes/new')} type="button">
@@ -238,6 +238,7 @@ export function CreditReportsPage({
               const summary = summariesByUpload.get(upload.id)
               const isPdf = upload.mime_type === 'application/pdf'
               const isImage = isImageUploadMime(upload.mime_type)
+              const canParse = isPdf || isImage
               return (
                 <div className="history-card" key={upload.id}>
                   <div className="history-head">
@@ -250,10 +251,10 @@ export function CreditReportsPage({
                       </div>
                       {isImage ? (
                         <div className="history-sub" style={{ marginTop: 6, color: 'var(--muted)' }}>
-                          Kept as your exhibit. Tradeline auto-extract requires a text-based PDF — use &quot;Parse&quot; on PDF rows below when available.
+                          Kept as your exhibit. Use Parse to run OCR and extract tradelines from this screenshot.
                         </div>
                       ) : null}
-                      {isPdf && (
+                      {canParse && (
                         <div
                           className="history-sub"
                           style={{ marginTop: 6, color: summary ? '#9ad8b8' : 'var(--muted)' }}
@@ -265,7 +266,9 @@ export function CreditReportsPage({
                                 summary.public_record_count === 1 ? '' : 's'
                               } (${summary.bureau})`
                             : parsingId === upload.id
-                              ? 'Parsing report…'
+                              ? isImage
+                                ? 'Running OCR and parsing…'
+                                : 'Parsing report…'
                               : 'Not parsed yet — click "Re-parse" to try again.'}
                         </div>
                       )}
@@ -277,13 +280,17 @@ export function CreditReportsPage({
                       <button className="btn btn-gold" onClick={() => void downloadSigned(upload)} type="button">
                         Download
                       </button>
-                      {isPdf && (
+                      {canParse && (
                         <button
                           className="btn btn-ghost"
                           disabled={parsingId === upload.id}
                           onClick={() => void reparseUpload(upload)}
                           type="button"
-                          title="Re-run the credit-report parser against this PDF."
+                          title={
+                            isImage
+                              ? 'Re-run OCR and the credit-report parser on this image.'
+                              : 'Re-run the credit-report parser against this PDF.'
+                          }
                         >
                           {parsingId === upload.id ? 'Parsing…' : summary ? 'Re-parse' : 'Parse'}
                         </button>

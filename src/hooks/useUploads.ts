@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react'
 import { parseUploadRequest, saveUploadMetadataRequest } from '../lib/apiClient'
 import { requireSupabase } from '../lib/supabaseClient'
-import { buildSafeUploadPath, sanitizeUploadFileName, validateUpload } from '../lib/validators'
+import {
+  buildSafeUploadPath,
+  isImageUploadMime,
+  sanitizeUploadFileName,
+  validateUpload,
+} from '../lib/validators'
 import type { CreditFile, UploadRecord } from '../types'
 
 const BUCKET = 'private-uploads'
@@ -48,11 +53,15 @@ export function useUploads(userId?: string) {
 
             uploaded.push(mapUploadToCreditFile(metadata.upload))
 
-            // Fire-and-forget: kick off the parser for PDFs so the UI can
+            // Fire-and-forget: kick off the parser for PDFs and screenshots so the UI can
             // show structured tradeline counts on /credit-reports without
             // blocking the wizard step. Failures here are intentionally
             // swallowed — the upload itself already succeeded.
-            if (metadata.upload?.id && metadata.upload?.mime_type === 'application/pdf') {
+            const mime = metadata.upload?.mime_type || ''
+            if (
+              metadata.upload?.id &&
+              (mime === 'application/pdf' || isImageUploadMime(mime))
+            ) {
               void parseUploadRequest({ uploadId: metadata.upload.id }).catch(() => {})
             }
           } catch (error) {

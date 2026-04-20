@@ -165,11 +165,23 @@ function extractionHints(normalizedRequest, resolvedUploads, extractedByAgency) 
   const hints = []
   for (const agency of normalizedRequest.agencies) {
     const rows = uploadsForAgency(resolvedUploads, agency)
-    const hasPdf = rows.some((r) => String(r.mime_type || '').toLowerCase() === 'application/pdf')
-    const ex = extractedByAgency[agency] || { text: '', pdfFilesTried: 0 }
-    if (hasPdf && ex.pdfFilesTried > 0 && !String(ex.text || '').trim()) {
+    const mimes = rows.map((r) => String(r.mime_type || '').toLowerCase())
+    const hasPdf = mimes.some((m) => m === 'application/pdf')
+    const hasImage = mimes.some((m) => m.startsWith('image/'))
+    const ex = extractedByAgency[agency] || {
+      text: '',
+      pdfFilesTried: 0,
+      imageOcrTried: 0,
+    }
+    const empty = !String(ex.text || '').trim()
+    if (hasPdf && ex.pdfFilesTried > 0 && empty) {
       hints.push(
         `Little or no text was read from your ${AGENCIES[agency] || agency} PDF (common with scanned/image PDFs). Download a text-selectable report from the bureau, re-upload, or fill the tradeline prompts in the letter manually.`,
+      )
+    }
+    if (hasImage && ex.imageOcrTried > 0 && empty) {
+      hints.push(
+        `Little or no text was read from your ${AGENCIES[agency] || agency} screenshot or photo (try a clearer full-screen capture, or upload a text-based PDF). You can still fill tradeline prompts in the letter manually.`,
       )
     }
   }
@@ -207,7 +219,7 @@ export default async function handler(request, response) {
     for (const agency of normalizedRequest.agencies) {
       const rows = uploadsForAgency(resolvedUploads, agency)
       const label = AGENCIES[agency] || agency
-      sendEvent(response, { type: 'status', message: `Reading ${label} report PDF text…` })
+      sendEvent(response, { type: 'status', message: `Reading ${label} report text (PDF or OCR)…` })
       extractedByAgency[agency] = await extractTextFromBureauUploads(supabaseAdmin, rows, extractionCache)
     }
 
