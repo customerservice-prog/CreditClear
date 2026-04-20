@@ -123,6 +123,7 @@ export function createInitialState(): AppState {
       zip: '',
       ssn: '',
       dob: '',
+      includeDobInLetters: false,
     },
     agencies: [],
     issues: [],

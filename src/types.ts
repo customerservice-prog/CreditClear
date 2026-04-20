@@ -48,9 +48,12 @@ export interface CreditFile {
   report_bureau?: ReportBureauTag | null
 }
 
+/** Consolidated bureau letters cover every selected category in one document. */
+export type LetterIssueKey = IssueId | 'multi'
+
 export interface Letter {
   id: string
-  issue: IssueId
+  issue: LetterIssueKey
   issueLabel: string
   issueIcon: string
   agency: AgencyId | 'general'
@@ -81,6 +84,17 @@ export interface AppInfo {
   zip: string
   ssn: string
   dob: string
+  /** When true, date of birth is included in mailed letter identity block (default off). */
+  includeDobInLetters?: boolean
+}
+
+/** One disputed account row cited in letters (primary form or additional line). */
+export interface IssueAccountLine {
+  creditorName: string
+  accountLast4: string
+  amountOrBalance: string
+  reportedDate: string
+  disputeReason: string
 }
 
 /** Per selected issue: tradeline details that populate dispute letters. */
@@ -90,6 +104,8 @@ export interface IssueAccountDetail {
   amountOrBalance: string
   reportedDate: string
   disputeReason: string
+  /** Extra accounts for the same issue category (optional). */
+  items?: IssueAccountLine[]
 }
 
 export type IssueDetailsMap = Partial<Record<IssueId, IssueAccountDetail>>

@@ -39,20 +39,27 @@ describe('hasPremiumAccess', () => {
   })
 })
 
+const bureauInfo = {
+  address: '123 Main St',
+  city: 'New York',
+  email: 'USER@example.com',
+  firstName: 'Jane',
+  lastName: 'Doe',
+  state: 'NY',
+  zip: '10001',
+}
+
+/** Bureau-facing letters require at least one creditor per selected issue. */
+const tradelinesForIssues = (issues) =>
+  Object.fromEntries(issues.map((id) => [id, { creditorName: 'Example Creditor' }]))
+
 describe('normalizeGenerationRequest', () => {
   it('normalizes a valid generation payload', () => {
     const result = normalizeGenerationRequest({
       agencies: ['equifax', 'experian'],
       files: [{ id: '11111111-1111-4111-8111-111111111111' }],
-      info: {
-        address: '123 Main St',
-        city: 'New York',
-        email: 'USER@example.com',
-        firstName: 'Jane',
-        lastName: 'Doe',
-        state: 'NY',
-        zip: '10001',
-      },
+      info: bureauInfo,
+      issueDetails: tradelinesForIssues(['late', 'dup']),
       issues: ['late', 'dup'],
     })
 
@@ -60,6 +67,7 @@ describe('normalizeGenerationRequest', () => {
     expect(result.issues).toEqual(['late', 'dup'])
     expect(result.fileIds).toEqual(['11111111-1111-4111-8111-111111111111'])
     expect(result.info.email).toBe('user@example.com')
+    expect(result.info.includeDobInLetters).toBe(false)
     expect(result.letterType).toBe('bureau_initial')
   })
 
@@ -76,6 +84,7 @@ describe('normalizeGenerationRequest', () => {
         state: 'NY',
         zip: '10001',
       },
+      issueDetails: tradelinesForIssues(['late']),
       issues: ['late'],
       letterType: 'mov',
     })
@@ -94,10 +103,23 @@ describe('normalizeGenerationRequest', () => {
           state: 'NY',
           zip: '10001',
         },
+        issueDetails: tradelinesForIssues(['late']),
         issues: ['late'],
         letterType: 'pirate-letter',
       }),
     ).toThrow(/Letter type/)
+  })
+
+  it('rejects bureau letters when any issue lacks creditor/account details', () => {
+    expect(() =>
+      normalizeGenerationRequest({
+        agencies: ['equifax'],
+        files: [{ id: '11111111-1111-4111-8111-111111111111' }],
+        info: bureauInfo,
+        issueDetails: { late: { creditorName: 'A' } },
+        issues: ['late', 'dup'],
+      }),
+    ).toThrow(/Each selected category needs at least one creditor/)
   })
 
   it('rejects malformed or abusive payloads', () => {
@@ -121,9 +143,13 @@ describe('normalizeGenerationRequest', () => {
         agencies: ['equifax'],
         files: [],
         info: {
+          address: '1 Main',
+          city: 'X',
           email: 'not-an-email',
           firstName: 'Jane',
           lastName: 'Doe',
+          state: 'NY',
+          zip: '10001',
         },
         issues: ['late'],
       }),
@@ -146,7 +172,7 @@ describe('normalizeGenerationRequest', () => {
         },
         issues: ['late'],
       }),
-    ).toThrow(/Upload at least one credit report PDF/)
+    ).toThrow(/Upload at least one credit report file/)
 
     const withIssue = normalizeGenerationRequest({
       agencies: ['equifax'],
@@ -166,6 +192,7 @@ describe('normalizeGenerationRequest', () => {
         },
       },
       issues: ['late'],
+      letterType: 'furnisher',
     })
     expect(withIssue.issueDetails.late.creditorName).toBe('Test Bank')
   })

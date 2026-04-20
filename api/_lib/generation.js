@@ -10,6 +10,23 @@ import {
   sanitizeText,
 } from './validation.js'
 
+const BUREAU_FACING_LETTERS = new Set(['bureau_initial', 'mov', 'cfpb'])
+
+const ISSUE_LABELS = {
+  late: 'Late payments',
+  coll: 'Collections',
+  inq: 'Hard inquiries',
+  id: 'Identity errors',
+  dup: 'Duplicate accounts',
+  bal: 'Wrong balances',
+  bk: 'Bankruptcy',
+  repo: 'Repossessions',
+  jud: 'Judgments / liens',
+  cl: 'Closed accounts',
+  sl: 'Student loans',
+  med: 'Medical debt',
+}
+
 export function hasPremiumAccess(subscription, now = Date.now()) {
   const hasTrial = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at).getTime() > now : false
   const hasSubscription = subscription?.status === 'active'
@@ -52,11 +69,10 @@ export function normalizeGenerationRequest(body) {
     throw new ApiError(400, 'Street address, city, state, and ZIP are required on your dispute letters.')
   }
 
+  const letterType = normalizeLetterType(body.letterType)
   const issueDetails = sanitizeIssueDetailsMap(body, issues)
 
-  assertHasLetterSource(fileIds, issueDetails, issues)
-
-  const letterType = normalizeLetterType(body.letterType)
+  assertHasLetterSource(fileIds, issueDetails, issues, letterType)
 
   return {
     agencies,
@@ -73,6 +89,7 @@ export function normalizeGenerationRequest(body) {
       zip,
       dob: sanitizeText(info.dob, { maxLength: 20 }),
       ssn: sanitizeText(info.ssn, { maxLength: 4 }),
+      includeDobInLetters: info.includeDobInLetters === true,
     },
     issueDetails,
     issues,
@@ -89,6 +106,31 @@ function normalizeLetterType(value) {
   return normalized
 }
 
+function sanitizeIssueDetailItems(row) {
+  const rawItems = row.items
+  if (!Array.isArray(rawItems)) {
+    return []
+  }
+  const out = []
+  for (const it of rawItems.slice(0, 25)) {
+    if (!it || typeof it !== 'object') {
+      continue
+    }
+    const creditorName = sanitizeText(it.creditorName, { maxLength: 200 })
+    if (!creditorName.trim()) {
+      continue
+    }
+    out.push({
+      accountLast4: sanitizeText(it.accountLast4, { maxLength: 32 }),
+      amountOrBalance: sanitizeText(it.amountOrBalance, { maxLength: 80 }),
+      creditorName,
+      disputeReason: sanitizeText(it.disputeReason, { maxLength: 2000, preserveNewlines: true }),
+      reportedDate: sanitizeText(it.reportedDate, { maxLength: 80 }),
+    })
+  }
+  return out
+}
+
 function sanitizeIssueDetailsMap(body, issues) {
   const raw = body.issueDetails
   const out = {}
@@ -100,31 +142,66 @@ function sanitizeIssueDetailsMap(body, issues) {
     if (!row || typeof row !== 'object') {
       continue
     }
+    const items = sanitizeIssueDetailItems(row)
     out[issue] = {
       accountLast4: sanitizeText(row.accountLast4, { maxLength: 32 }),
       amountOrBalance: sanitizeText(row.amountOrBalance, { maxLength: 80 }),
       creditorName: sanitizeText(row.creditorName, { maxLength: 200 }),
       disputeReason: sanitizeText(row.disputeReason, { maxLength: 2000, preserveNewlines: true }),
       reportedDate: sanitizeText(row.reportedDate, { maxLength: 80 }),
+      ...(items.length ? { items } : {}),
     }
   }
   return out
 }
 
-function assertHasLetterSource(fileIds, issueDetails, issues) {
+function hasTradelineForIssue(row) {
+  if (!row) {
+    return false
+  }
+  if (row.creditorName?.trim()) {
+    return true
+  }
+  for (const it of row.items || []) {
+    if (it?.creditorName?.trim()) {
+      return true
+    }
+  }
+  return false
+}
+
+function assertHasLetterSource(fileIds, issueDetails, issues, letterType) {
+  if (BUREAU_FACING_LETTERS.has(letterType)) {
+    if (!fileIds.length) {
+      throw new ApiError(
+        400,
+        'Upload at least one credit report file (with the correct bureau label) before generating bureau dispute letters.',
+      )
+    }
+    for (const issue of issues) {
+      if (!hasTradelineForIssue(issueDetails[issue])) {
+        const label = ISSUE_LABELS[issue] || issue
+        throw new ApiError(
+          400,
+          `Each selected category needs at least one creditor/account. Add details for “${label}” or deselect that category.`,
+        )
+      }
+    }
+    return
+  }
+
   if (fileIds.length > 0) {
     return
   }
 
   for (const issue of issues) {
-    const row = issueDetails[issue]
-    if (row?.creditorName?.trim()) {
+    if (hasTradelineForIssue(issueDetails[issue])) {
       return
     }
   }
 
   throw new ApiError(
     400,
-    'Upload at least one credit report PDF (Step 4), or enter the creditor / account details for at least one selected issue (Step 3), so dispute letters are not blank templates.',
+    'Upload at least one credit report file, or enter creditor / account details for at least one selected issue.',
   )
 }

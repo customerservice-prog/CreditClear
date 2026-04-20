@@ -14,6 +14,7 @@ const ISSUE_LABELS: Record<string, string> = {
   cl: 'Closed Accounts',
   sl: 'Student Loans',
   med: 'Medical Debt',
+  multi: 'All selected categories',
 }
 
 export function formatFileSize(size: number) {

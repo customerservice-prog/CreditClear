@@ -1,4 +1,4 @@
-import type { AppInfo, IssueDetailsMap, IssueId } from '../types'
+import type { AppInfo, IssueAccountDetail, IssueDetailsMap, IssueId, LetterType } from '../types'
 
 export function isValidEmail(value: string) {
   return /\S+@\S+\.\S+/.test(value)
@@ -50,12 +50,42 @@ export function validateMailingAddressForLetters(info: AppInfo) {
   return null
 }
 
-export function hasLetterGenerationSource(files: { id?: string }[], issues: IssueId[], issueDetails: IssueDetailsMap) {
+function issueHasTradelineDetail(detail: IssueAccountDetail | undefined): boolean {
+  if (!detail) {
+    return false
+  }
+  if (detail.creditorName?.trim()) {
+    return true
+  }
+  return Boolean(detail.items?.some((row) => row.creditorName?.trim()))
+}
+
+/** Call before generating — mirrors server rules for bureau vs furnisher letter types. */
+export function hasLetterGenerationSource(
+  files: { id?: string }[],
+  issues: IssueId[],
+  issueDetails: IssueDetailsMap,
+  letterType: LetterType = 'bureau_initial',
+) {
+  const bureauFacing = letterType === 'bureau_initial' || letterType === 'mov' || letterType === 'cfpb'
+
+  if (bureauFacing) {
+    if (!files.some((f) => Boolean(f.id))) {
+      return false
+    }
+    for (const issue of issues) {
+      if (!issueHasTradelineDetail(issueDetails[issue])) {
+        return false
+      }
+    }
+    return true
+  }
+
   if (files.some((f) => Boolean(f.id))) {
     return true
   }
   for (const issue of issues) {
-    if (issueDetails[issue]?.creditorName?.trim()) {
+    if (issueHasTradelineDetail(issueDetails[issue])) {
       return true
     }
   }

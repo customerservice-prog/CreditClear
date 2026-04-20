@@ -246,8 +246,20 @@ export function openLetterCardNavigation(letterId: string): void {
 
 /** Optional account context line for the panel header */
 export function formatIssueAccountHint(detail: IssueAccountDetail | undefined): string | null {
-  if (!detail?.creditorName?.trim()) return null
-  const parts = [detail.creditorName.trim()]
-  if (detail.accountLast4?.trim()) parts.push(`···${detail.accountLast4.trim()}`)
-  return parts.join(' ')
+  const extra = detail?.items?.filter((row) => row.creditorName?.trim()).length ?? 0
+  if (!detail?.creditorName?.trim() && extra === 0) {
+    return null
+  }
+  const parts: string[] = []
+  if (detail?.creditorName?.trim()) {
+    parts.push(detail.creditorName.trim())
+    if (detail.accountLast4?.trim()) {
+      parts.push(`···${detail.accountLast4.trim()}`)
+    }
+  }
+  let out = parts.join(' ')
+  if (extra > 0) {
+    out = out ? `${out} (+${extra} more)` : `${extra} account(s) in this category`
+  }
+  return out || null
 }

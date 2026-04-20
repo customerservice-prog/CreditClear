@@ -616,6 +616,7 @@ function AppRoutes() {
       zip: info.zip.trim(),
       ssn: info.ssn.trim(),
       dob: info.dob.trim(),
+      includeDobInLetters: info.includeDobInLetters === true,
     }
 
     const full_name = [info.firstName, info.lastName].map((s) => s.trim()).filter(Boolean).join(' ') || null
@@ -685,6 +686,7 @@ function AppRoutes() {
       nextState.info.zip = saved?.zip?.trim() || ''
       nextState.info.ssn = saved?.ssn?.trim() || ''
       nextState.info.dob = saved?.dob?.trim() || ''
+      nextState.info.includeDobInLetters = saved?.includeDobInLetters === true
     }
 
     setAppState(nextState)
@@ -709,9 +711,11 @@ function AppRoutes() {
       return
     }
 
-    if (!hasLetterGenerationSource(appState.files, appState.issues, appState.issueDetails)) {
+    if (!hasLetterGenerationSource(appState.files, appState.issues, appState.issueDetails, appState.letterType)) {
       setBillingMessage(
-        'Upload at least one credit report PDF in Step 4, or enter the creditor name for at least one selected issue in Step 3, so letters include real account information.',
+        appState.letterType === 'bureau_initial' || appState.letterType === 'mov' || appState.letterType === 'cfpb'
+          ? 'Bureau letters need labeled uploads (Step 4) and a creditor/account row for every category you selected (Step 3). Remove categories you are not disputing or add account details for each.'
+          : 'Upload at least one file, or enter creditor/account details for at least one selected issue.',
       )
       return
     }
@@ -776,7 +780,13 @@ function AppRoutes() {
             setAppState((previous) => ({
               ...previous,
               letters: [...previous.letters, event.letter!],
-              streamMessage: `Generated ${collectedLetters.length} of ${appState.issues.length * (appState.agencies.length || 1)} letters...`,
+              streamMessage: `Generated ${collectedLetters.length} of ${
+                appState.letterType === 'bureau_initial' ||
+                appState.letterType === 'mov' ||
+                appState.letterType === 'cfpb'
+                  ? appState.agencies.length || 1
+                  : appState.issues.length * (appState.agencies.length || 1)
+              } letters...`,
             }))
           }
 

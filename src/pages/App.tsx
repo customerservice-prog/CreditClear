@@ -21,11 +21,20 @@ import type {
   AppTab,
   DisputeRecord,
   IssueAccountDetail,
+  IssueAccountLine,
   IssueId,
   Letter,
   LetterType,
   ReportBureauTag,
 } from '../types'
+
+const EMPTY_ACCOUNT_LINE = (): IssueAccountLine => ({
+  accountLast4: '',
+  amountOrBalance: '',
+  creditorName: '',
+  disputeReason: '',
+  reportedDate: '',
+})
 
 interface AppPageProps {
   appState: AppState
@@ -71,9 +80,12 @@ interface AppPageProps {
   userDisplayName: string
 }
 
+/** Personal step text inputs only (`includeDobInLetters` uses a separate checkbox). */
+type AppInfoTextField = Exclude<keyof AppInfo, 'includeDobInLetters'>
+
 const infoFieldMap: Array<{
   id: string
-  field: keyof AppInfo
+  field: AppInfoTextField
   label: string
   placeholder: string
   type?: string
@@ -132,7 +144,13 @@ export function AppPage({
     Boolean(appState.info.firstName) &&
     Boolean(appState.info.lastName) &&
     Boolean(appState.info.email)
-  const letterCount = appState.issues.length * (appState.agencies.length || 1)
+  const bureauOneLetterPerBureau =
+    appState.letterType === 'bureau_initial' ||
+    appState.letterType === 'mov' ||
+    appState.letterType === 'cfpb'
+  const letterCount = bureauOneLetterPerBureau
+    ? Math.max(1, appState.agencies.length || 1)
+    : appState.issues.length * (appState.agencies.length || 1)
 
   useEffect(() => {
     if (appState.step !== 0) {
@@ -165,6 +183,22 @@ export function AppPage({
           </h1>
           <p>Organize report concerns, upload supporting files, and generate editable draft dispute documents for your review.</p>
         </div>
+        {canAccessApp && appState.tab === 'generator' ? (
+          <div
+            className="app-note"
+            style={{
+              background: 'rgba(234, 179, 8, 0.14)',
+              border: '1px solid rgba(234, 179, 8, 0.5)',
+              color: 'var(--txt2, #ddd)',
+              marginBottom: 16,
+            }}
+          >
+            <strong>Free preview — not for production mailing without your own legal review.</strong> Draft quality depends on
+            tradeline details you enter for <em>each</em> selected category and on labeling each upload to the correct bureau.
+            Round 1 bureau letters are combined into <strong>one letter per bureau</strong> listing every account you add below.
+            Full auto-parsing from PDFs/screenshots is planned.
+          </div>
+        ) : null}
         {billingMessage ? <div className="app-note error">{billingMessage}</div> : null}
 
         {!canAccessApp ? (
@@ -670,6 +704,19 @@ function renderWizardStep({
               {personalFieldErrors[field.field] ? <div className="ferr">{personalFieldErrors[field.field]}</div> : null}
             </div>
           ))}
+          <div className="f sp">
+            <label style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+              <input
+                checked={Boolean(appState.info.includeDobInLetters)}
+                onChange={(event) => onPersonalFieldChange('includeDobInLetters', event.target.checked)}
+                type="checkbox"
+              />
+              <span>Include date of birth on mailed letters (optional; off by default)</span>
+            </label>
+            <div className="card-s" style={{ fontSize: 12, marginBottom: 0, marginTop: 6 }}>
+              Name and mailing address are always printed. Social Security numbers are never included in letter text.
+            </div>
+          </div>
         </div>
         <div className="btn-row" style={{ flexWrap: 'wrap', gap: 12 }}>
           <button className="btn btn-gold" onClick={onAttemptContinuePersonal} type="button">
@@ -822,7 +869,9 @@ function renderWizardStep({
                 {selected ? (
                   <div className="idetail">
                     <div className="card-s" style={{ marginBottom: 12, fontSize: 13 }}>
-                      Enter what you can from your report. If you plan to upload screenshots or a PDF on the next step, you may keep this minimal (for example creditor name and last four) — uploads satisfy the workflow even when fields here are short.
+                      <strong>Required for bureau letters:</strong> at least one creditor (and ideally last four / balance) per
+                      category you selected. Round 1 combines every category into one letter per bureau — each row you add
+                      becomes a bullet in that letter.
                     </div>
                     <div className="fg">
                       <div className="f sp">
@@ -867,6 +916,106 @@ function renderWizardStep({
                         />
                       </div>
                     </div>
+                    <div className="card-s" style={{ marginTop: 16, marginBottom: 8, fontWeight: 600 }}>
+                      Additional accounts in this category (optional)
+                    </div>
+                    {(detail.items ?? []).map((item, itemIdx) => (
+                      <div
+                        key={itemIdx}
+                        style={{
+                          borderLeft: '2px solid rgba(212, 175, 55, 0.45)',
+                          marginBottom: 14,
+                          paddingLeft: 12,
+                        }}
+                      >
+                        <div className="fg">
+                          <div className="f sp">
+                            <label>Creditor / subscriber name</label>
+                            <input
+                              onChange={(e) => {
+                                const next = (detail.items ?? []).map((row, i) =>
+                                  i === itemIdx ? { ...row, creditorName: e.target.value } : row,
+                                )
+                                onIssueDetailChange(issue.id, { items: next })
+                              }}
+                              placeholder="As on your report"
+                              value={item.creditorName}
+                            />
+                          </div>
+                          <div className="f">
+                            <label>Account (last 4)</label>
+                            <input
+                              onChange={(e) => {
+                                const next = (detail.items ?? []).map((row, i) =>
+                                  i === itemIdx ? { ...row, accountLast4: e.target.value } : row,
+                                )
+                                onIssueDetailChange(issue.id, { items: next })
+                              }}
+                              value={item.accountLast4}
+                            />
+                          </div>
+                          <div className="f">
+                            <label>Balance (optional)</label>
+                            <input
+                              onChange={(e) => {
+                                const next = (detail.items ?? []).map((row, i) =>
+                                  i === itemIdx ? { ...row, amountOrBalance: e.target.value } : row,
+                                )
+                                onIssueDetailChange(issue.id, { items: next })
+                              }}
+                              value={item.amountOrBalance}
+                            />
+                          </div>
+                          <div className="f">
+                            <label>Date / status (optional)</label>
+                            <input
+                              onChange={(e) => {
+                                const next = (detail.items ?? []).map((row, i) =>
+                                  i === itemIdx ? { ...row, reportedDate: e.target.value } : row,
+                                )
+                                onIssueDetailChange(issue.id, { items: next })
+                              }}
+                              value={item.reportedDate}
+                            />
+                          </div>
+                          <div className="f sp">
+                            <label>Dispute reason (optional)</label>
+                            <textarea
+                              onChange={(e) => {
+                                const next = (detail.items ?? []).map((row, i) =>
+                                  i === itemIdx ? { ...row, disputeReason: e.target.value } : row,
+                                )
+                                onIssueDetailChange(issue.id, { items: next })
+                              }}
+                              rows={2}
+                              value={item.disputeReason}
+                            />
+                          </div>
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => {
+                              const next = (detail.items ?? []).filter((_, i) => i !== itemIdx)
+                              onIssueDetailChange(issue.id, { items: next.length ? next : undefined })
+                            }}
+                            type="button"
+                          >
+                            Remove this account
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() =>
+                        onIssueDetailChange(issue.id, {
+                          items: [...(detail.items ?? []), EMPTY_ACCOUNT_LINE()],
+                        })
+                      }
+                      style={{ marginTop: 4 }}
+                      type="button"
+                    >
+                      + Add another account in this category
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -885,11 +1034,16 @@ function renderWizardStep({
     )
   }
 
+  const bureauOneLetterPerBureau =
+    appState.letterType === 'bureau_initial' ||
+    appState.letterType === 'mov' ||
+    appState.letterType === 'cfpb'
+
   return (
     <div className="card">
       <div className="card-t">Upload your credit report (screenshots or files)</div>
       <div className="card-s">
-        Most people finish this flow with <em>phone screenshots</em> or exports from their bureau site — PDF is optional. Upload at least one file here <em>or</em> make sure you entered creditor names on the previous step; otherwise letter generation is blocked.
+        Bureau dispute letters require at least one file <strong>labeled</strong> for each bureau you chose (or one Combined file). You already entered account rows on the previous step — those become the bullets in each bureau letter.
         Label each upload for the bureau it belongs to (or Combined). If parsing says it could not detect a bureau, open{' '}
         <Link style={{ color: 'var(--gold)' }} to="/credit-reports">
           Credit Reports
@@ -973,7 +1127,18 @@ function renderWizardStep({
           Choose your letter type
         </div>
         <div className="card-s" style={{ marginBottom: 10 }}>
-          We&apos;ll draft <strong>{letterCount}</strong> {letterCount === 1 ? 'letter' : 'letters'} of the type you pick — one per selected bureau and issue. Default is the Round 1 bureau dispute.
+          {bureauOneLetterPerBureau ? (
+            <>
+              We&apos;ll draft <strong>{letterCount}</strong> {letterCount === 1 ? 'letter' : 'letters'} —{' '}
+              <strong>one per bureau</strong>, each listing every disputed account from the categories you selected. Furnisher /
+              validation letters still generate one per bureau × issue.
+            </>
+          ) : (
+            <>
+              We&apos;ll draft <strong>{letterCount}</strong> {letterCount === 1 ? 'letter' : 'letters'} — one per selected
+              bureau and issue for this template type.
+            </>
+          )}
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {LETTER_TYPE_OPTIONS.map((opt) => {
@@ -1014,11 +1179,13 @@ function renderWizardStep({
       <button className="btn-gen" onClick={onStartAnalysis} type="button">
         ⚡ Generate {letterCount} Dispute Letter{letterCount === 1 ? '' : 's'}
       </button>
-      <div className="skip-lnk">
-        <button onClick={onStartAnalysis} type="button">
-          Skip uploads — only if you already entered enough creditor / account detail on the issues step
-        </button>
-      </div>
+      {appState.letterType !== 'bureau_initial' && appState.letterType !== 'mov' && appState.letterType !== 'cfpb' ? (
+        <div className="skip-lnk">
+          <button onClick={onStartAnalysis} type="button">
+            Skip uploads — only if you already entered enough creditor / account detail on the issues step
+          </button>
+        </div>
+      ) : null}
       <div className="btn-row">
         <button className="btn btn-ghost" onClick={() => onGoToStep(2)} type="button">
           ← Back

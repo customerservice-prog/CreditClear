@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { LETTER_TYPES, buildLetterText, letterSubject } from './letter-templates.js'
+import {
+  LETTER_TYPES,
+  buildConsolidatedBureauRoundLetter,
+  buildLetterText,
+  letterSubject,
+} from './letter-templates.js'
 
 const baseInfo = {
   firstName: 'Jane',
@@ -84,6 +89,61 @@ describe('buildLetterText', () => {
     const text = buildLetterText({ ...baseArgs, type: 'bureau_initial', issueDetail: null })
     expect(text).toMatch(/Jane Doe/)
     expect(text).not.toMatch(/Capital Bank/)
+  })
+
+  it('never prints Social Security number in letter text', () => {
+    const text = buildLetterText({ ...baseArgs, type: 'bureau_initial' })
+    expect(text).not.toMatch(/Social Security/i)
+    expect(text).not.toMatch(/6789/)
+  })
+
+  it('prints date of birth only when includeDobInLetters is true', () => {
+    const noDobLine = buildLetterText({
+      ...baseArgs,
+      type: 'bureau_initial',
+      info: { ...baseInfo, includeDobInLetters: false },
+    })
+    expect(noDobLine).not.toMatch(/Date of birth/i)
+    const withDobLine = buildLetterText({
+      ...baseArgs,
+      type: 'bureau_initial',
+      info: { ...baseInfo, includeDobInLetters: true },
+    })
+    expect(withDobLine).toMatch(/Date of birth/i)
+    expect(withDobLine).toMatch(/1990-04-12/)
+  })
+
+  it('builds one consolidated bureau letter with bullets for multiple categories', () => {
+    const text = buildConsolidatedBureauRoundLetter({
+      agency: 'experian',
+      info: { ...baseInfo, includeDobInLetters: false },
+      issueCatalog: {
+        late: { icon: '⏰', label: 'Late Payments' },
+        inq: { icon: '🔍', label: 'Hard Inquiries' },
+      },
+      issueDetails: {
+        inq: {
+          accountLast4: '',
+          amountOrBalance: '',
+          creditorName: 'OTHER BANK',
+          disputeReason: 'Not authorized.',
+          reportedDate: 'Jan 2026',
+        },
+        late: {
+          accountLast4: '1234',
+          amountOrBalance: '$425',
+          creditorName: 'Capital Bank',
+          disputeReason: '',
+          reportedDate: 'March 2026',
+        },
+      },
+      issues: ['late', 'inq'],
+      type: 'bureau_initial',
+    })
+    expect(text).toMatch(/Capital Bank/)
+    expect(text).toMatch(/OTHER BANK/)
+    expect(text).toMatch(/Items on my consumer file/)
+    expect(text).not.toMatch(/Attached or referenced materials/i)
   })
 
   it('renders furnisher address when furnisherAddressLines is supplied', () => {

@@ -4,7 +4,14 @@ import { extractTextFromBureauUploads } from './_lib/extract-report-text.js'
 import { normalizeGenerationRequest } from './_lib/generation.js'
 import { ApiError, sendError, toSseErrorMessage } from './_lib/http.js'
 import { lookupFurnisherAddress, renderFurnisherAddressLines } from './_lib/furnisher-lookup.js'
-import { LETTER_TYPE_META, buildLetterText, letterSubject } from './_lib/letter-templates.js'
+import {
+  LETTER_TYPE_META,
+  buildConsolidatedBureauRoundLetter,
+  buildLetterText,
+  collectIssueLineItems,
+  consolidatedBureauSubject,
+  letterSubject,
+} from './_lib/letter-templates.js'
 import { assertRateLimit } from './_lib/rate-limit.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
 import { sanitizeText } from './_lib/validation.js'
@@ -30,44 +37,18 @@ const ISSUES = {
   med: { label: 'Medical Debt', icon: '🏥' },
 }
 
-/* eslint-disable */
-/** @deprecated retained only as a fallback hint for legacy paths; live letters now route through letter-templates.js */
-const ISSUE_DISPUTE_PARAGRAPH = {
-  late: (agencyName) =>
-    `I dispute the reported late-payment history associated with the account identified in this letter. Furnishers must report accurate payment history under 15 U.S.C. § 1681s-2. If any late payment notation on my ${agencyName} file cannot be verified as 100% accurate and complete for this tradeline, I request deletion or correction following a reasonable reinvestigation under 15 U.S.C. § 1681i.`,
-  coll: (agencyName) =>
-    `I dispute the reported collection tradeline(s) on my ${agencyName} file. If this collection cannot be validated with complete and accurate information (including the right to validation under the Fair Debt Collection Practices Act, 15 U.S.C. § 1692g, where applicable), I request deletion or correction and disclosure of the outcome of your reinvestigation.`,
-  inq: (agencyName) =>
-    `I dispute one or more hard inquiries on my ${agencyName} file. Permissible purpose and authorization for each inquiry must be supportable. For any inquiry I did not authorize or that is otherwise reported incorrectly, I request deletion after reinvestigation under the FCRA.`,
-  id: (agencyName) =>
-    `I dispute identity and header information on my ${agencyName} file (names, aliases, addresses, merged files, or mixed records) that may confuse my creditworthiness with another person’s. I request reinvestigation and correction of all inaccurate or incomplete identity data.`,
-  dup: (agencyName) =>
-    `I dispute duplicate tradelines or multiple listings of the same obligation on my ${agencyName} file. Duplicate reporting can distort utilization and payment history; I request consolidation or removal of erroneous duplicates after verification with the furnisher(s).`,
-  bal: (agencyName) =>
-    `I dispute reported balances, credit limits, and high-balance figures on my ${agencyName} file. Inaccurate balances or limits affect scores and disclosures; I request reinvestigation and correction wherever amounts cannot be verified as complete and accurate.`,
-  bk: (agencyName) =>
-    `I dispute bankruptcy public-record or tradeline information on my ${agencyName} file (including chapter, filing/discharge dates, liability amounts, or status). I request verification and correction of any detail that is obsolete, incomplete, or cannot be confirmed from court or other reliable records.`,
-  repo: (agencyName) =>
-    `I dispute repossession or voluntary-surrender reporting on my ${agencyName} file. I request reinvestigation; if any status, balance, or date is unverifiable or reported in error, I request deletion or correction.`,
-  jud: (agencyName) =>
-    `I dispute judgment or lien public-record data on my ${agencyName} file. I request reinvestigation and correction if any amount, filing date, satisfaction, or status is reported incorrectly or cannot be verified.`,
-  cl: (agencyName) =>
-    `I dispute how closed account(s) are characterized on my ${agencyName} file (closed date, payment history, charge-off/payoff coding). I request correction of any closed-account information that cannot be fully verified.`,
-  sl: (agencyName) =>
-    `I dispute student-loan tradeline(s) on my ${agencyName} file (balance, status, duplicates between servicers). I request reinvestigation and correction after communication with the loan holder/servicer as needed.`,
-  med: (agencyName) =>
-    `I dispute medical-debt reporting on my ${agencyName} file, including balance, provider, insurance status, and collection placement. I request correction or deletion of items that cannot be verified in accordance with consumer-reporting standards.`,
-}
-/* eslint-enable */
+const BUREAU_FACING_TYPES = new Set(['bureau_initial', 'mov', 'cfpb'])
 
+/** Uploads explicitly labeled for this bureau or a combined tri-merge file. */
 function uploadsForAgency(resolvedUploads, agency) {
   return resolvedUploads.filter((row) => {
     const tag = row.report_bureau
-    return !tag || tag === 'combined' || tag === agency
+    return tag === 'combined' || tag === agency
   })
 }
 
 async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
+  void extractedByAgency
   const agencies = normalizedRequest.agencies?.length
     ? normalizedRequest.agencies
     : Object.keys(AGENCIES)
@@ -78,60 +59,79 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
   const typeMeta = LETTER_TYPE_META[letterType] || LETTER_TYPE_META.bureau_initial
   const letterList = []
 
-  // Furnisher / validation / goodwill letters are addressed to the
-  // creditor or collector, not the bureau. Pre-resolve the recipient
-  // address once per (issue,creditorName) so we don't hammer the table
-  // when the same furnisher appears under multiple bureaus.
   const directRecipientTypes = new Set(['furnisher', 'validation', 'goodwill'])
   const furnisherCache = new Map()
   const directRecipientWanted = directRecipientTypes.has(letterType)
 
-  for (const agency of agencies) {
-    const forBureau = uploadsForAgency(resolvedUploads, agency)
-    void (extractedByAgency[agency] || {}) // raw text is intentionally not pasted into letters; PR 3 stores it on credit_reports
-
-    for (const issue of issues) {
-      const issueMeta = ISSUES[issue] || { label: issue }
-      const issueDetail = issueDetails[issue] || null
-
-      let furnisherAddressLines
-      if (directRecipientWanted) {
-        const creditorName = issueDetail?.creditorName?.trim()
-        if (creditorName) {
-          if (!furnisherCache.has(creditorName)) {
-            const row = await lookupFurnisherAddress(creditorName)
-            furnisherCache.set(creditorName, row ? renderFurnisherAddressLines(row) : null)
-          }
-          furnisherAddressLines = furnisherCache.get(creditorName)
-        }
+  if (BUREAU_FACING_TYPES.has(letterType)) {
+    for (const agency of agencies) {
+      const forBureau = uploadsForAgency(resolvedUploads, agency)
+      if (forBureau.length === 0) {
+        continue
       }
-
-      const text = buildLetterText({
-        type: letterType,
+      const text = buildConsolidatedBureauRoundLetter({
         agency,
         info,
-        issueMeta,
-        issueDetail,
-        forBureau,
-        furnisherAddressLines,
+        issueCatalog: ISSUES,
+        issueDetails,
+        issues,
+        type: letterType,
       })
-
       letterList.push({
         agency,
-        issue,
-        subject: letterSubject({ type: letterType, agency, issueMeta }),
+        issue: 'multi',
+        subject: consolidatedBureauSubject({ agency, categoryCount: issues.length, type: letterType }),
         text,
       })
     }
+  } else {
+    for (const agency of agencies) {
+      for (const issue of issues) {
+        const issueMeta = ISSUES[issue] || { label: issue }
+        const issueDetail = issueDetails[issue] || null
+
+        let furnisherAddressLines
+        if (directRecipientWanted) {
+          const lines = collectIssueLineItems(issueDetail || {})
+          const creditorName = lines[0]?.creditorName?.trim()
+          if (creditorName) {
+            if (!furnisherCache.has(creditorName)) {
+              const row = await lookupFurnisherAddress(creditorName)
+              furnisherCache.set(creditorName, row ? renderFurnisherAddressLines(row) : null)
+            }
+            furnisherAddressLines = furnisherCache.get(creditorName)
+          }
+        }
+
+        const text = buildLetterText({
+          type: letterType,
+          agency,
+          info,
+          issueMeta,
+          issueDetail,
+          forBureau: [],
+          furnisherAddressLines,
+        })
+
+        letterList.push({
+          agency,
+          issue,
+          subject: letterSubject({ agency, issueMeta, type: letterType }),
+          text,
+        })
+      }
+    }
   }
 
-  const summary = `${typeMeta.label} drafts (${typeMeta.citation}). Read every line carefully before mailing — accuracy is your responsibility. ${
-    typeMeta.targetKind === 'bureau'
-      ? 'Each letter is addressed to the bureau and ready to mail.'
-      : typeMeta.targetKind === 'cfpb'
-        ? 'CFPB complaints are submitted online at consumerfinance.gov/complaint — paste the generated text into the portal fields.'
-        : 'Replace the bracketed furnisher / collector / creditor address before mailing — confirm the current mailing address on the company\'s website.'
-  }`
+  const summary = BUREAU_FACING_TYPES.has(letterType)
+    ? `${typeMeta.label} (${typeMeta.citation}) — ${letterList.length} draft${letterList.length === 1 ? '' : 's'}: one letter per bureau with every disputed tradeline listed. Read before mailing.`
+    : `${typeMeta.label} drafts (${typeMeta.citation}). Read every line carefully before mailing — accuracy is your responsibility. ${
+        typeMeta.targetKind === 'bureau'
+          ? 'Each letter is addressed to the bureau and ready to mail.'
+          : typeMeta.targetKind === 'cfpb'
+            ? 'CFPB complaints are submitted online at consumerfinance.gov/complaint — paste the generated text into the portal fields.'
+            : 'Replace the bracketed furnisher / collector / creditor address before mailing — confirm the current mailing address on the company\'s website.'
+      }`
 
   return JSON.stringify({
     recommendations: [
@@ -206,6 +206,18 @@ export default async function handler(request, response) {
     const normalizedRequest = normalizeGenerationRequest(request.body || {})
     const resolvedUploads = await resolveOwnedUploads(normalizedRequest.fileIds, authUser.id)
 
+    if (BUREAU_FACING_TYPES.has(normalizedRequest.letterType)) {
+      for (const agency of normalizedRequest.agencies) {
+        if (uploadsForAgency(resolvedUploads, agency).length === 0) {
+          throw new ApiError(
+            422,
+            `Label an upload as your ${AGENCIES[agency] || agency} report (or “Combined” if one file covers every bureau). Each bureau you selected must have a matching labeled file before generating.`,
+            { expose: true },
+          )
+        }
+      }
+    }
+
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
     response.setHeader('Cache-Control', 'no-cache, no-transform, no-store')
     response.setHeader('Connection', 'keep-alive')
@@ -228,7 +240,12 @@ export default async function handler(request, response) {
     const text = await buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
 
     const parsed = safeJsonParse(text)
-    const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)
+    const letters = normalizeLetters(
+      parsed?.letters || [],
+      normalizedRequest.agencies,
+      normalizedRequest.issues,
+      normalizedRequest.letterType,
+    )
     const summary = typeof parsed?.summary === 'string' ? parsed.summary.trim() : ''
     const recommendations = [
       ...(Array.isArray(parsed?.recommendations)
@@ -265,13 +282,23 @@ export default async function handler(request, response) {
   }
 }
 
-function normalizeLetters(rawLetters, agencies, issues) {
-  const expectedCount = Math.max(1, agencies.length * issues.length)
+function normalizeLetters(rawLetters, agencies, issues, letterType) {
+  const bureauFacing = BUREAU_FACING_TYPES.has(letterType)
+  const cap = bureauFacing ? rawLetters.length : Math.max(1, agencies.length * issues.length)
 
-  return rawLetters.slice(0, expectedCount).map((letter, index) => {
+  return rawLetters.slice(0, cap).map((letter, index) => {
     const agency = agencies.includes(letter.agency) ? letter.agency : agencies[index % agencies.length] || 'equifax'
-    const issue = issues.includes(letter.issue) ? letter.issue : issues[index % issues.length] || 'late'
-    const issueMeta = ISSUES[issue] || { icon: '📄', label: issue }
+    const issueRaw = letter.issue
+    const issue =
+      issueRaw === 'multi'
+        ? 'multi'
+        : issues.includes(issueRaw)
+          ? issueRaw
+          : issues[index % issues.length] || 'late'
+    const issueMeta =
+      issue === 'multi'
+        ? { icon: '📋', label: `All categories (${issues.length})` }
+        : ISSUES[issue] || { icon: '📄', label: issue }
 
     return {
       agency,

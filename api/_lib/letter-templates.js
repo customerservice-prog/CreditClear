@@ -145,6 +145,7 @@ export function letterSubject({ type, agency, issueMeta }) {
 // ---------------------------------------------------------------------------
 
 function buildBureauInitialLetter({ agency, info, issueMeta, issueDetail, forBureau }) {
+  void forBureau
   const agencyName = AGENCY_NAMES[agency] || agency
   const bureauLines = BUREAU_MAILING[agency] || [agencyName]
   const lines = [
@@ -167,8 +168,6 @@ function buildBureauInitialLetter({ agency, info, issueMeta, issueDetail, forBur
       `The category in dispute is "${issueMeta.label}" as it appears on my ${agencyName} consumer file.`,
     '',
     'Under §611, you must notify any furnisher of the dispute within five business days, complete the reinvestigation within 30 days (45 days if I provide additional information during the dispute window), and delete or correct any item that cannot be verified as accurate and complete.',
-    '',
-    attachmentsLine(forBureau),
     '',
     'Please send the reinvestigation results and an updated file disclosure to the address above. I am keeping a copy of this dispute for my records.',
     '',
@@ -384,8 +383,9 @@ function consumerSignBlock(info) {
 
 function identityLines(info) {
   const out = [`- Full name: ${fullName(info)}`]
-  if (info.dob) out.push(`- Date of birth: ${info.dob}`)
-  if (info.ssn) out.push(`- Social Security number (last four digits only): ${info.ssn}`)
+  if (info.includeDobInLetters && info.dob) {
+    out.push(`- Date of birth: ${info.dob}`)
+  }
   const street = (info.address || '').trim()
   const cityLine = [info.city, info.state].filter(Boolean).join(', ').trim()
   const zip = (info.zip || '').trim()
@@ -394,33 +394,272 @@ function identityLines(info) {
   return out
 }
 
+/**
+ * Flatten primary + additional account rows for letter bodies.
+ * @param {object|null|undefined} issueDetail
+ * @returns {Array<{ creditorName: string, accountLast4: string, amountOrBalance: string, reportedDate: string, disputeReason: string }>}
+ */
+export function collectIssueLineItems(issueDetail) {
+  if (!issueDetail || typeof issueDetail !== 'object') {
+    return []
+  }
+  const out = []
+  if (issueDetail.creditorName?.trim()) {
+    out.push({
+      accountLast4: String(issueDetail.accountLast4 || '').trim(),
+      amountOrBalance: String(issueDetail.amountOrBalance || '').trim(),
+      creditorName: String(issueDetail.creditorName || '').trim(),
+      disputeReason: String(issueDetail.disputeReason || '').trim(),
+      reportedDate: String(issueDetail.reportedDate || '').trim(),
+    })
+  }
+  const items = Array.isArray(issueDetail.items) ? issueDetail.items : []
+  for (const item of items) {
+    if (!item?.creditorName?.trim()) {
+      continue
+    }
+    out.push({
+      accountLast4: String(item.accountLast4 || '').trim(),
+      amountOrBalance: String(item.amountOrBalance || '').trim(),
+      creditorName: String(item.creditorName || '').trim(),
+      disputeReason: String(item.disputeReason || '').trim(),
+      reportedDate: String(item.reportedDate || '').trim(),
+    })
+  }
+  return out
+}
+
+function formatOneTradelineBullet(issueLabel, line, statutoryFallback) {
+  const parts = [`${line.creditorName}`]
+  if (line.accountLast4) {
+    parts.push(`account ref. ${line.accountLast4}`)
+  }
+  if (line.amountOrBalance) {
+    parts.push(`balance/amount ${line.amountOrBalance}`)
+  }
+  if (line.reportedDate) {
+    parts.push(`as reported ${line.reportedDate}`)
+  }
+  let text = `• [${issueLabel}] ${parts.join('; ')}.`
+  if (line.disputeReason) {
+    text += ` ${line.disputeReason}`
+  } else {
+    text += ` ${statutoryFallback}`
+  }
+  return text
+}
+
+/** Per-issue one-line statutory anchor for bullets when the user did not type a custom reason. */
+export const ISSUE_STATUTORY_TAIL = {
+  late: (agencyName) =>
+    `I dispute the reported payment history for this tradeline and request reinvestigation under 15 U.S.C. § 1681i; furnishers must report accurately under §1681s-2.`,
+  coll: (agencyName) =>
+    `I dispute this collection tradeline and request reinvestigation; where the FDCPA applies I also invoke validation rights under 15 U.S.C. § 1692g.`,
+  inq: (agencyName) =>
+    `I dispute this hard inquiry as not authorized or incorrectly reported and request deletion after reinvestigation under the FCRA.`,
+  id: (agencyName) =>
+    `I dispute inaccurate identity or merged-file data on my ${agencyName} report and request correction under §1681i.`,
+  dup: (agencyName) =>
+    `I dispute duplicate reporting of the same obligation and request consolidation or deletion after verification.`,
+  bal: (agencyName) =>
+    `I dispute reported balances/limits as inaccurate or incomplete and request correction under §1681i.`,
+  bk: (agencyName) =>
+    `I dispute bankruptcy-related reporting as inaccurate or unverifiable and request reinvestigation.`,
+  repo: (agencyName) =>
+    `I dispute repossession or surrender reporting and request reinvestigation and correction if unverifiable.`,
+  jud: (agencyName) =>
+    `I dispute judgment/lien public-record data and request reinvestigation if amounts or status cannot be verified.`,
+  cl: (agencyName) =>
+    `I dispute how this closed account is characterized and request correction of any unverifiable closed-account data.`,
+  sl: (agencyName) =>
+    `I dispute student-loan tradeline reporting (balance/status/servicer duplicates) and request reinvestigation.`,
+  med: (agencyName) =>
+    `I dispute medical-debt reporting (balance/provider/collection placement) and request correction under applicable standards.`,
+}
+
+/**
+ * One letter per bureau: all selected categories and tradeline rows in a single document.
+ * @param {object} args
+ * @param {string} args.type  bureau_initial | mov | cfpb
+ * @param {string} args.agency
+ * @param {object} args.info
+ * @param {string[]} args.issues
+ * @param {Record<string, object>} args.issueDetails
+ * @param {Record<string, { label: string, icon?: string }>} args.issueCatalog
+ */
+export function buildConsolidatedBureauRoundLetter(args) {
+  const { type, agency, info, issues, issueDetails, issueCatalog } = args
+  const agencyName = AGENCY_NAMES[agency] || agency
+  const bureauLines = BUREAU_MAILING[agency] || [agencyName]
+  const bulletBlocks = []
+  for (const issue of issues) {
+    const meta = issueCatalog[issue] || { label: issue }
+    const detail = issueDetails[issue]
+    const lines = collectIssueLineItems(detail)
+    const tailFn = ISSUE_STATUTORY_TAIL[issue] || ISSUE_STATUTORY_TAIL.late
+    for (const line of lines) {
+      bulletBlocks.push(formatOneTradelineBullet(meta.label, line, tailFn(agencyName)))
+    }
+  }
+  const itemsSection =
+    bulletBlocks.length > 0
+      ? ['Items on my consumer file that I am disputing in this letter:', '', ...bulletBlocks].join('\n')
+      : ''
+
+  if (type === 'cfpb') {
+    return buildConsolidatedCfpb({ agencyName, info, issues, issueCatalog, itemsSection })
+  }
+  if (type === 'mov') {
+    return buildConsolidatedMov({ agency, agencyName, bureauLines, info, itemsSection })
+  }
+  return buildConsolidatedBureauInitial({ agencyName, bureauLines, info, itemsSection })
+}
+
+function buildConsolidatedBureauInitial({ agencyName, bureauLines, info, itemsSection }) {
+  const lines = [
+    letterDate(),
+    '',
+    ...consumerHeader(info),
+    '',
+    ...bureauLines,
+    '',
+    `Re: Fair Credit Reporting Act dispute — multiple tradelines (${agencyName})`,
+    '',
+    'Dear Sir or Madam,',
+    '',
+    'For verification of my identity (please match to my consumer file):',
+    ...identityLines(info),
+    '',
+    'I am formally disputing the items listed below on my consumer file pursuant to the Fair Credit Reporting Act, 15 U.S.C. § 1681i. I request a reasonable reinvestigation of each disputed item, written results of the reinvestigation, and a free updated disclosure of my consumer file.',
+    '',
+    itemsSection,
+    '',
+    'Under §611, you must notify any furnisher of the dispute within five business days, complete the reinvestigation within 30 days (45 days if I provide additional information during the dispute window), and delete or correct any item that cannot be verified as accurate and complete.',
+    '',
+    'Please send the reinvestigation results and an updated file disclosure to the address above. I am keeping a copy of this dispute for my records.',
+    '',
+    'Respectfully,',
+    '',
+    fullName(info),
+    ...consumerSignBlock(info),
+  ]
+  return joinClean(lines)
+}
+
+function buildConsolidatedMov({ agency, agencyName, bureauLines, info, itemsSection }) {
+  const lines = [
+    letterDate(),
+    '',
+    ...consumerHeader(info),
+    '',
+    ...bureauLines,
+    '',
+    `Re: Method-of-verification request under FCRA §611(a)(7) — multiple tradelines (${agencyName})`,
+    '',
+    'Dear Sir or Madam,',
+    '',
+    'I previously disputed the item(s) listed below and you returned the result "verified" without describing how the verification was performed. Pursuant to 15 U.S.C. § 1681i(a)(7), please disclose, within fifteen (15) days of receipt of this request:',
+    '',
+    '  1. The business name, address, and telephone number of every furnisher you contacted to verify the item.',
+    '  2. The full description of the procedure you used to verify the item, including the names and titles of every individual who performed the verification.',
+    '  3. Copies of every document you received, reviewed, or relied on during the reinvestigation.',
+    '',
+    'For verification of my identity:',
+    ...identityLines(info),
+    '',
+    itemsSection,
+    '',
+    'If you cannot or will not provide the §611(a)(7) disclosures, you have not completed a reasonable reinvestigation as a matter of law and the disputed item(s) must be deleted from my consumer file. Please send the disclosures and an updated file copy to the address above.',
+    '',
+    'Respectfully,',
+    '',
+    fullName(info),
+    ...consumerSignBlock(info),
+  ]
+  return joinClean(lines)
+}
+
+function buildConsolidatedCfpb({ agencyName, info, issues, issueCatalog, itemsSection }) {
+  const labels = issues.map((id) => issueCatalog[id]?.label || id).join('; ')
+  const lines = [
+    'CFPB COMPLAINT — DRAFT',
+    'Submit at: https://www.consumerfinance.gov/complaint/',
+    '',
+    `Company complained against: ${agencyName}`,
+    `Issue categories: ${labels}`,
+    '',
+    '— What happened (paste this into the "What happened?" field) —',
+    '',
+    itemsSection ||
+      `I have multiple items on my ${agencyName} consumer report that I believe are inaccurate or incomplete.`,
+    '',
+    `I disputed these items directly with ${agencyName} under the Fair Credit Reporting Act (15 U.S.C. § 1681i). After my dispute, ${agencyName} either failed to respond within the statutory 30-day window, returned a "verified" result without describing how the item was verified (in violation of §611(a)(7)), or did not delete or correct items that remained inaccurate or unverifiable.`,
+    '',
+    '— What would resolve the issue (paste into the "What would be a fair resolution?" field) —',
+    '',
+    `Please direct ${agencyName} to delete or correct the disputed item(s) from my consumer file and send me a free updated file disclosure confirming the outcome.`,
+    '',
+    '— Consumer information (CFPB form fields) —',
+    '',
+    `Full name: ${fullName(info)}`,
+    `Mailing address: ${joinIfBoth(info.address, joinIfBoth(info.city, joinIfBoth(info.state, info.zip)))}`,
+    info.email ? `Email: ${info.email}` : '',
+    info.phone ? `Phone: ${info.phone}` : '',
+    '',
+    'Note: Submit the complaint at consumerfinance.gov/complaint. Keep the CFPB tracking number — the bureau is required to respond through the portal within 15 calendar days.',
+  ]
+  return joinClean(lines)
+}
+
+export function consolidatedBureauSubject({ type, agency, categoryCount }) {
+  const agencyName = AGENCY_NAMES[agency] || agency
+  const meta = LETTER_TYPE_META[type] || LETTER_TYPE_META.bureau_initial
+  if (type === 'cfpb') {
+    return `CFPB complaint draft — ${agencyName} · ${categoryCount} categor${categoryCount === 1 ? 'y' : 'ies'}`
+  }
+  return `${agencyName} — ${meta.label}: ${categoryCount} dispute categor${categoryCount === 1 ? 'y' : 'ies'} (one letter)`
+}
+
 function accountSpecificParagraph(issueMeta, issueDetail) {
-  if (!issueDetail?.creditorName?.trim()) {
+  const lines = collectIssueLineItems(issueDetail)
+  if (lines.length === 0) {
     return ''
   }
+  if (lines.length === 1) {
+    return formatSingleAccountParagraph(issueMeta, lines[0])
+  }
+  const bits = [`I am disputing the following ${issueMeta.label.toLowerCase()} items on my file:`]
+  for (const line of lines) {
+    bits.push(`  • ${formatInlineAccount(line)}`)
+  }
+  return bits.join('\n')
+}
+
+function formatSingleAccountParagraph(issueMeta, line) {
   const bits = [
-    `The account at issue concerns "${issueDetail.creditorName.trim()}" as reported on my file for the dispute category "${issueMeta.label}".`,
+    `The account at issue concerns "${line.creditorName}" as reported on my file for the dispute category "${issueMeta.label}".`,
   ]
-  if (issueDetail.accountLast4?.trim()) {
-    bits.push(`Account reference (as reported / last digits): ${issueDetail.accountLast4.trim()}.`)
+  if (line.accountLast4) {
+    bits.push(`Account reference (as reported / last digits): ${line.accountLast4}.`)
   }
-  if (issueDetail.amountOrBalance?.trim()) {
-    bits.push(`Balance or amount shown: ${issueDetail.amountOrBalance.trim()}.`)
+  if (line.amountOrBalance) {
+    bits.push(`Balance or amount shown: ${line.amountOrBalance}.`)
   }
-  if (issueDetail.reportedDate?.trim()) {
-    bits.push(`Relevant date or status period: ${issueDetail.reportedDate.trim()}.`)
+  if (line.reportedDate) {
+    bits.push(`Relevant date or status period: ${line.reportedDate}.`)
   }
-  if (issueDetail.disputeReason?.trim()) {
-    bits.push(`Summary of my position: ${issueDetail.disputeReason.trim()}`)
+  if (line.disputeReason) {
+    bits.push(`Summary of my position: ${line.disputeReason}`)
   }
   return bits.join(' ')
 }
 
-function attachmentsLine(forBureau) {
-  if (!forBureau || forBureau.length === 0) return ''
-  return `Attached or referenced materials include credit-report file(s) for review: ${forBureau
-    .map((u) => u.file_name)
-    .join('; ')}.`
+function formatInlineAccount(line) {
+  const p = [line.creditorName]
+  if (line.accountLast4) p.push(`ref. ${line.accountLast4}`)
+  if (line.amountOrBalance) p.push(line.amountOrBalance)
+  if (line.reportedDate) p.push(line.reportedDate)
+  return p.join('; ')
 }
 
 function fullName(info) {
