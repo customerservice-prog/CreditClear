@@ -90,6 +90,34 @@ export async function mailLetterRequest(body: { letterId: string }) {
   )
 }
 
+export interface ProClient {
+  id: string
+  client_user_id: string | null
+  client_email: string
+  client_full_name: string | null
+  status: 'invited' | 'active' | 'paused' | 'archived'
+  invited_at: string
+  accepted_at: string | null
+  created_at: string
+}
+
+export async function listProClientsRequest(): Promise<{ clients: ProClient[] }> {
+  const accessToken = await getAccessTokenForApi()
+  const response = await fetch('/api/pro-clients', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  const payload = (await response.json().catch(() => ({}))) as { error?: string; clients?: ProClient[] }
+  if (!response.ok) {
+    throw new Error(payload.error || `Could not load clients (${response.status}).`)
+  }
+  return { clients: payload.clients ?? [] }
+}
+
+export async function inviteProClientRequest(body: { client_email: string; client_full_name?: string }) {
+  return apiRequest<{ client: ProClient }>('/api/pro-clients', body)
+}
+
 export async function pullAggregatorReportRequest(body: { bureau: 'equifax' | 'experian' | 'transunion' }) {
   return apiRequest<{
     reportId: string

@@ -25,6 +25,7 @@ const apiHandlers = {
   '/api/generate-letters': () => import('./api/generate-letters.js'),
   '/api/mail-letter': () => import('./api/mail-letter.js'),
   '/api/parse-upload': () => import('./api/parse-upload.js'),
+  '/api/pro-clients': () => import('./api/pro-clients.js'),
   '/api/pull-report': () => import('./api/pull-report.js'),
   '/api/save-upload-metadata': () => import('./api/save-upload-metadata.js'),
   '/api/stripe-webhook': () => import('./api/stripe-webhook.js'),

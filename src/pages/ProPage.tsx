@@ -1,7 +1,8 @@
-import { ComingSoon } from '../components/ComingSoon'
+import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
-import { FEATURE_FLAGS } from '../lib/featureFlags'
+import { useAuthContext } from '../context/useAuthContext'
+import { useProRole } from '../hooks/useProRole'
 import { SITE_URL } from '../lib/site'
 
 interface ProPageProps {
@@ -44,6 +45,10 @@ const PLANNED_FEATURES = [
 ]
 
 export function ProPage({ onHome, onSignIn, onStartTrial }: ProPageProps) {
+  const { authUser } = useAuthContext()
+  const { role } = useProRole(authUser?.id ?? null)
+  const isPro = role === 'pro' || role === 'admin'
+
   return (
     <div className="page active">
       <SkipToContent />
@@ -63,8 +68,35 @@ export function ProPage({ onHome, onSignIn, onStartTrial }: ProPageProps) {
           </p>
         </div>
 
-        <div className="section" style={{ paddingTop: 0, maxWidth: 980, margin: '0 auto' }}>
-          <ComingSoon feature={FEATURE_FLAGS.pro_dashboard} source="pro_page_hero" />
+        <div className="section" style={{ paddingTop: 0, maxWidth: 720, margin: '0 auto' }}>
+          {isPro ? (
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div className="card-t">You&apos;re in the Pro tier</div>
+              <p className="card-s" style={{ marginBottom: 12 }}>
+                Open your roster to invite clients and manage their disputes.
+              </p>
+              <Link className="btn" to="/pro/dashboard">Open Pro dashboard</Link>
+            </div>
+          ) : authUser ? (
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div className="card-t">Request Pro tier access</div>
+              <p className="card-s" style={{ marginBottom: 12 }}>
+                Pro is invite-only at launch so we can support every firm directly through onboarding. Email{' '}
+                <a href="mailto:pro@creditclear.ai">pro@creditclear.ai</a> with your firm name and we&apos;ll
+                provision your account.
+              </p>
+              <Link className="btn" to="/contact">Contact us</Link>
+            </div>
+          ) : (
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div className="card-t">Already a Pro user?</div>
+              <p className="card-s" style={{ marginBottom: 12 }}>
+                Sign in to open your client roster. New consultants — email{' '}
+                <a href="mailto:pro@creditclear.ai">pro@creditclear.ai</a> to request access.
+              </p>
+              <button className="btn" onClick={onSignIn} type="button">Sign in</button>
+            </div>
+          )}
         </div>
 
         <div className="section" style={{ paddingTop: 8, maxWidth: 1080, margin: '0 auto' }}>

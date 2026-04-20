@@ -85,11 +85,11 @@ export const FEATURE_FLAGS = {
   pro_dashboard: {
     id: 'pro_dashboard',
     label: 'Pro dashboard for credit consultants',
-    status: 'coming_soon',
+    status: 'live',
     description:
-      'Manage your full client book — invite clients, run disputes for them, and bill from a single workspace.',
-    eta: 'Invite-only beta opening Q3 2026',
-    route: '/pro',
+      'Invite clients to your roster and manage their dispute work from a single workspace. Bulk letter generation and white-label letterhead are still on the roadmap.',
+    eta: '',
+    route: '/pro/dashboard',
     icon: '👥',
   },
   round_tracking: {

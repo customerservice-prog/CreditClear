@@ -29,6 +29,9 @@ import { getPublicEnv } from './lib/publicEnv'
 import { SITE_URL } from './lib/site'
 
 const ProPage = lazy(() => import('./pages/ProPage').then((module) => ({ default: module.ProPage })))
+const ProDashboardPage = lazy(() =>
+  import('./pages/ProDashboardPage').then((module) => ({ default: module.ProDashboardPage })),
+)
 const ScoreSimulatorPage = lazy(() =>
   import('./pages/ScoreSimulatorPage').then((module) => ({ default: module.ScoreSimulatorPage })),
 )
@@ -105,6 +108,11 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
     description:
       'CreditClear Pro for credit consultants: multi-client dashboards, bulk letter generation, white-label letterhead, and CROA-compliant billing. Coming soon.',
     title: 'CreditClear Pro for Credit Consultants | CreditClear AI',
+  },
+  '/pro/dashboard': {
+    description:
+      'Pro tier dashboard for credit consultants. Invite clients and manage their dispute rosters.',
+    title: 'Pro Dashboard | CreditClear AI',
   },
   '/score-simulator': {
     description:
@@ -1521,6 +1529,24 @@ function AppRoutes() {
             }
           />
           <Route
+            path="/pro/dashboard"
+            element={
+              authUser ? (
+                <ProDashboardPage
+                  appTab="disputes"
+                  onAppTabChange={handleWorkspaceTabChange}
+                  onShowHome={() => navigate('/')}
+                  onSignOut={() => void signOutUser()}
+                  statusLabel={subscription.statusLabel}
+                  user={appUser}
+                  userDisplayName={userDisplayName}
+                />
+              ) : (
+                <Navigate replace to="/login" />
+              )
+            }
+          />
+          <Route
             path="/score-simulator"
             element={
               <ScoreSimulatorPage
@@ -1577,7 +1603,7 @@ function routeRequiresSessionGate(pathname: string): boolean {
   if (pathname === '/app') {
     return true
   }
-  if (['/dashboard', '/billing', '/settings', '/credit-reports'].includes(pathname)) {
+  if (['/dashboard', '/billing', '/settings', '/credit-reports', '/pro/dashboard'].includes(pathname)) {
     return true
   }
   if (pathname.startsWith('/disputes/')) {
