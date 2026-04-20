@@ -75,10 +75,10 @@ export const FEATURE_FLAGS = {
   score_simulator: {
     id: 'score_simulator',
     label: 'Score impact simulator',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'See an educational estimate of how a successful dispute could affect your utilization and account-age signals.',
-    eta: 'Early access in Q3 2026',
+    eta: '',
     route: '/score-simulator',
     icon: '📈',
   },
