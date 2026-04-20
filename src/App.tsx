@@ -11,7 +11,7 @@ import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { downloadLetterAsPdf } from './lib/downloadLetterPdf'
 import { buildAutoDisputeTitle, buildLetterFileName } from './lib/formatters'
 import { splitProfileFirstLast } from './lib/profileName'
-import { captureClientError } from './lib/monitoring'
+import { captureClientError } from './lib/monitoring'h
 import { MarketingMain, SkipToContent } from './components/MarketingPageFrame'
 import { formatAuthError } from './lib/authErrors'
 import {
@@ -579,8 +579,10 @@ function AppRoutes() {
       const raw = 'message' in error && typeof error.message === 'string' ? error.message : ''
       const message =
         /saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')
-          ? 'Could not save your contact details. Ask your admin to apply the latest Supabase migration (saved_contact on profiles) and confirm Row Level Security allows profile updates.'
+          ? undefined // migration issue: continue silently, admin fix needed server-side
           : `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
+      // For migration issues, we still advance the step (non-blocking)
+      if (!message) return { ok: true, warning: 'Profile save skipped (DB setup pending).' }
       return { ok: false, message }
     }
 
@@ -600,10 +602,11 @@ function AppRoutes() {
   async function handleAdvanceFromPersonalStep() {
     const result = await persistProfileContact(appState.info)
     if (!result.ok) {
-      setBillingMessage(result.message)
-      return
+      // Non-blocking: show warning but still advance to next step
+      setBillingMessage(result.warning ?? result.message ?? '')
+    } else {
+      setBillingMessage(result.warning ?? '')
     }
-    setBillingMessage(result.warning ?? '')
     setAppState((previous) => ({ ...previous, step: 1 }))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
