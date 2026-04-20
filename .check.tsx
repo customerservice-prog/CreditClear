@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Home as HomePage } from './pages/Home'
 import { useAuthContext } from './context/useAuthContext'
@@ -67,7 +67,7 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
   },
   '/blog': {
     description:
-      'Educational guides on credit dispute letters, FCRA basics, bureau workflows, and credit score myths—not legal advice.',
+      'Educational guides on credit dispute letters, FCRA basics, bureau workflows, and credit score mythsΓÇönot legal advice.',
     title: 'Credit Dispute & Credit Report Guides | CreditClear AI',
   },
   '/contact': {
@@ -577,11 +577,10 @@ function AppRoutes() {
     if (error) {
       captureClientError(error, { flow: 'persist_profile_contact' })
       const raw = 'message' in error && typeof error.message === 'string' ? error.message : ''
-      // Migration/schema errors: treat as non-fatal so the workflow still advances
-      if (/saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')) {
-        return { ok: true, warning: '' }
-      }
-      const message = `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
+      const message =
+        /saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')
+          ? 'Could not save your contact details. Ask your admin to apply the latest Supabase migration (saved_contact on profiles) and confirm Row Level Security allows profile updates.'
+          : `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
       return { ok: false, message }
     }
 
@@ -600,7 +599,11 @@ function AppRoutes() {
 
   async function handleAdvanceFromPersonalStep() {
     const result = await persistProfileContact(appState.info)
-    setBillingMessage(result.ok ? result.warning ?? '' : result.message)
+    if (!result.ok) {
+      setBillingMessage(result.message)
+      return
+    }
+    setBillingMessage(result.warning ?? '')
     setAppState((previous) => ({ ...previous, step: 1 }))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -670,7 +673,7 @@ function AppRoutes() {
       letters: [],
       aiSummary: '',
       recommendations: [],
-      streamMessage: 'Uploading your report and preparing your dispute drafts…',
+      streamMessage: 'Uploading your report and preparing your dispute draftsΓÇª',
     }))
 
     let slowStreamHint: number | undefined
@@ -689,7 +692,7 @@ function AppRoutes() {
             ? {
                 ...previous,
                 streamMessage:
-                  'Still waiting for the drafting service… This can take several minutes for many letters — keep this tab open.',
+                  'Still waiting for the drafting serviceΓÇª This can take several minutes for many letters ΓÇö keep this tab open.',
               }
             : previous,
         )
