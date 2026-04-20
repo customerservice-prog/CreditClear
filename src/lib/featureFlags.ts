@@ -66,9 +66,10 @@ export const FEATURE_FLAGS = {
     id: 'certified_mail',
     label: 'Certified mail tracking',
     status: 'coming_soon',
-    description: "We'll mail your letters certified with USPS tracking so you have proof of delivery.",
-    eta: 'Launches when our mailing partner is onboarded — first-100 pricing for waitlist members',
-    route: '/settings',
+    description:
+      "Send dispute letters certified with USPS tracking, postage shown per-letter, and the FCRA 30-day window auto-started for you. Pipeline is live behind MAIL_ENABLED — flip the env when the mailing partner is onboarded.",
+    eta: 'Pipeline live; flips on the day the mailing partner is signed',
+    route: '/disputes',
     icon: '📬',
   },
   score_simulator: {

@@ -80,6 +80,14 @@ export interface BillingStatus {
   plan_name: string
   monthly_price_cents: number | null
   aggregator_open: boolean
+  mail_open: boolean
+}
+
+export async function mailLetterRequest(body: { letterId: string }) {
+  return apiRequest<{ mailingId: string; trackingNumber: string; postageCents: number; status: string }>(
+    '/api/mail-letter',
+    body,
+  )
 }
 
 export async function pullAggregatorReportRequest(body: { bureau: 'equifax' | 'experian' | 'transunion' }) {

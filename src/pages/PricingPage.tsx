@@ -57,7 +57,7 @@ export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps
         const status = await getBillingStatus()
         if (!cancelled) setBilling(status)
       } catch {
-        if (!cancelled) setBilling({ checkout_open: false, plan_name: 'CreditClear Pro', monthly_price_cents: null, aggregator_open: false })
+        if (!cancelled) setBilling({ checkout_open: false, plan_name: 'CreditClear Pro', monthly_price_cents: null, aggregator_open: false, mail_open: false })
       } finally {
         if (!cancelled) setBillingLoaded(true)
       }

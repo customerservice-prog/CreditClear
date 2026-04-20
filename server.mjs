@@ -23,6 +23,7 @@ const apiHandlers = {
   '/api/create-portal': () => import('./api/create-portal.js'),
   '/api/generate-dispute-draft': () => import('./api/generate-dispute-draft.js'),
   '/api/generate-letters': () => import('./api/generate-letters.js'),
+  '/api/mail-letter': () => import('./api/mail-letter.js'),
   '/api/parse-upload': () => import('./api/parse-upload.js'),
   '/api/pull-report': () => import('./api/pull-report.js'),
   '/api/save-upload-metadata': () => import('./api/save-upload-metadata.js'),

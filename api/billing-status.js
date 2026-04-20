@@ -22,6 +22,9 @@ export default function handler(request, response) {
   const aggregatorOpen =
     aggregatorRaw === '1' || aggregatorRaw === 'true' || aggregatorRaw === 'yes' || aggregatorRaw === 'on'
 
+  const mailRaw = (process.env.MAIL_ENABLED || '').trim().toLowerCase()
+  const mailOpen = mailRaw === '1' || mailRaw === 'true' || mailRaw === 'yes' || mailRaw === 'on'
+
   response.statusCode = 200
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
   response.setHeader('Cache-Control', 'public, max-age=60')
@@ -31,6 +34,7 @@ export default function handler(request, response) {
       plan_name: planName,
       monthly_price_cents: Number.isFinite(monthlyPriceCents) ? monthlyPriceCents : null,
       aggregator_open: aggregatorOpen,
+      mail_open: mailOpen,
     }),
   )
 }
