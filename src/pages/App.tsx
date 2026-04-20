@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { ComingSoon } from '../components/ComingSoon'
+import { TradelinePicker } from '../components/TradelinePicker'
 import { WaitlistCard } from '../components/WaitlistCard'
+import { useTradelines, type PickableTradeline } from '../hooks/useTradelines'
 import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
 import { AGENCIES, GENERATION_PHASES, ISSUES, LETTER_TYPE_OPTIONS, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
@@ -119,6 +121,7 @@ export function AppPage({
     Boolean(appState.info.lastName) &&
     Boolean(appState.info.email)
   const letterCount = appState.issues.length * (appState.agencies.length || 1)
+  const { tradelines, loading: tradelinesLoading, error: tradelinesError } = useTradelines()
 
   useEffect(() => {
     if (appState.step !== 0) {
@@ -233,6 +236,9 @@ export function AppPage({
             onSetSelectedAgencies,
             onSetSelectedIssues,
             onStartAnalysis,
+            tradelines,
+            tradelinesLoading,
+            tradelinesError,
             onPersonalFieldChange: (field, value) => {
               setPersonalFieldErrors((previous) => {
                 const next = { ...previous }
@@ -347,10 +353,16 @@ function renderGeneratorStep({
   onPersonalFieldChange,
   personalFieldErrors,
   onUpdateLetterText,
+  tradelines,
+  tradelinesLoading,
+  tradelinesError,
 }: {
   appState: AppState
   canContinueFromPersonal: boolean
   letterCount: number
+  tradelines: PickableTradeline[]
+  tradelinesLoading: boolean
+  tradelinesError: string
   onAddFiles: (files: FileList | null) => void
   onAttemptContinuePersonal: () => void
   onDisputeTitleChange: (value: string) => void
@@ -402,6 +414,9 @@ function renderGeneratorStep({
           onSetSelectedAgencies,
           onSetSelectedIssues,
           onStartAnalysis,
+          tradelines,
+          tradelinesLoading,
+          tradelinesError,
         })}
       </>
     )
@@ -557,6 +572,9 @@ function renderWizardStep({
   onSetSelectedAgencies,
   onSetSelectedIssues,
   onStartAnalysis,
+  tradelines,
+  tradelinesLoading,
+  tradelinesError,
 }: {
   appState: AppState
   canContinueFromPersonal: boolean
@@ -574,6 +592,9 @@ function renderWizardStep({
   onSetSelectedAgencies: (agencies: AgencyId[]) => void
   onSetSelectedIssues: (issues: IssueId[]) => void
   onStartAnalysis: () => void
+  tradelines: PickableTradeline[]
+  tradelinesLoading: boolean
+  tradelinesError: string
 }) {
   if (appState.step === 0) {
     return (
@@ -679,6 +700,18 @@ function renderWizardStep({
         <div className="card-s">
           Pick the issue types that match what you see on your report, then enter the creditor / account details for each. Each combination of bureau × issue gets its own draft with distinct dispute language.
         </div>
+        <TradelinePicker
+          error={tradelinesError}
+          loading={tradelinesLoading}
+          onAssignTradeline={(issue, detail) => {
+            if (!appState.issues.includes(issue)) {
+              onSetSelectedIssues([...appState.issues, issue])
+            }
+            onIssueDetailChange(issue, detail)
+          }}
+          selectedIssues={appState.issues}
+          tradelines={tradelines}
+        />
         <button className="sa-btn" onClick={() => onSetSelectedIssues(allSelected ? [] : ISSUES.map((item) => item.id))} type="button">
           {allSelected ? 'Deselect All' : 'Select All Issues'}
         </button>

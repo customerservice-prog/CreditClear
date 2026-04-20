@@ -45,11 +45,11 @@ export const FEATURE_FLAGS = {
   tradeline_editing: {
     id: 'tradeline_editing',
     label: 'Tradeline-level dispute editing',
-    status: 'coming_soon',
+    status: 'live',
     description:
       'Pick the exact accounts, inquiries, and public records you want to dispute, with per-item dispute reasons.',
-    eta: 'Available to founding members',
-    route: '/letter-types',
+    eta: '',
+    route: '/disputes/new',
     icon: '🎯',
   },
   letter_types_six: {
