@@ -923,7 +923,11 @@ function AppRoutes() {
 
   async function addFiles(files: FileList | null) {
     try {
-      const nextFiles = await uploadFiles(files, appState.currentDisputeId ?? null, { awaitParse: true })
+      const bureauHint = appState.agencies.length === 1 ? appState.agencies[0] : undefined
+      const nextFiles = await uploadFiles(files, appState.currentDisputeId ?? null, {
+        awaitParse: true,
+        ...(bureauHint ? { bureauHint } : {}),
+      })
       setAppState((previous) => ({
         ...previous,
         files: [...previous.files, ...nextFiles],

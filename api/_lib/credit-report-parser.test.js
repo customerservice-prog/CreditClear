@@ -211,6 +211,22 @@ describe('parseCreditReportText - Equifax', () => {
   })
 })
 
+/** Mimics Experian "printable report" PDFs where pdf-parse often omits the word "Experian" but keeps FICO 8 + summary labels. */
+const EXPERIAN_PRINTABLE_NO_BRAND = `
+Prepared for: SAMPLE USER
+FICO® Score 8
+480
+Poor
+Account summary
+Open accounts 3
+Self reported accounts 0
+Accounts ever late 7
+Overall credit usage
+Credit card and credit line debt $750
+PERSONAL INFORMATION
+Name
+`
+
 describe('parseCreditReportText - Experian', () => {
   const parsed = parseCreditReportText(EXPERIAN_FIXTURE)
 
@@ -227,6 +243,22 @@ describe('parseCreditReportText - Experian', () => {
   it('parses inquiries and ignores empty public records', () => {
     expect(parsed.inquiries.length).toBe(2)
     expect(parsed.publicRecords.length).toBe(0)
+  })
+})
+
+describe('detectBureau - Experian printable / browser PDF', () => {
+  it('detects Experian when the brand word is missing but FICO 8 and summary rows are present', () => {
+    expect(detectBureau(EXPERIAN_PRINTABLE_NO_BRAND)).toBe('experian')
+    const parsed = parseCreditReportText(EXPERIAN_PRINTABLE_NO_BRAND)
+    expect(parsed).not.toBeNull()
+    expect(parsed?.bureau).toBe('experian')
+  })
+
+  it('detects Experian from usa.experian printable URL in extracted text', () => {
+    const text =
+      'https://usa.experian.com/mfe/credit/printable-report/experian/now\nAccount summary\nOpen accounts 2'
+    expect(detectBureau(text)).toBe('experian')
+    expect(parseCreditReportText(text)?.bureau).toBe('experian')
   })
 })
 

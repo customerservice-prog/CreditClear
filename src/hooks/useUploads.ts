@@ -7,7 +7,7 @@ import {
   sanitizeUploadFileName,
   validateUpload,
 } from '../lib/validators'
-import type { CreditFile, UploadRecord } from '../types'
+import type { AgencyId, CreditFile, UploadRecord } from '../types'
 
 const BUCKET = 'private-uploads'
 
@@ -18,7 +18,7 @@ export function useUploads(userId?: string) {
     async (
       files: FileList | null,
       disputeId?: string | null,
-      options?: { awaitParse?: boolean },
+      options?: { awaitParse?: boolean; bureauHint?: AgencyId },
     ) => {
       if (!files?.length || !userId) {
         return [] as CreditFile[]
@@ -26,6 +26,7 @@ export function useUploads(userId?: string) {
 
       setUploading(true)
       const awaitParse = options?.awaitParse ?? false
+      const bureauHint = options?.bureauHint
       try {
         const supabase = requireSupabase()
         const uploaded: CreditFile[] = []
@@ -67,10 +68,14 @@ export function useUploads(userId?: string) {
               metadata.upload?.id &&
               (mime === 'application/pdf' || isImageUploadMime(mime))
             ) {
+              const parseBody =
+                bureauHint != null
+                  ? { uploadId: metadata.upload.id, bureauHint }
+                  : { uploadId: metadata.upload.id }
               if (awaitParse) {
-                await parseUploadRequest({ uploadId: metadata.upload.id })
+                await parseUploadRequest(parseBody)
               } else {
-                void parseUploadRequest({ uploadId: metadata.upload.id }).catch(() => {})
+                void parseUploadRequest(parseBody).catch(() => {})
               }
             }
           } catch (error) {

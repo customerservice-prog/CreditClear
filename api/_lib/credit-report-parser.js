@@ -19,7 +19,23 @@ const BUREAU_SIGNATURES = [
   { id: 'equifax', patterns: [/\bequifax\b/i, /\bmyequifax\b/i, /eport\.equifax\.com/i] },
   {
     id: 'experian',
-    patterns: [/\bexperian\b/i, /experian\.com/i, /experiandirect/i],
+    patterns: [
+      /\bexperian\b/i,
+      /experian\.com/i,
+      /experiandirect/i,
+      /usa\.experian/i,
+      /consumer\.experian/i,
+      /printable-report\/experian/i,
+      /printable-report[^\n]{0,240}\bexperian\b/is,
+      /\/mfe\/credit\/printable/i,
+      /\/experian\/now\b/i,
+      // Consumer site summary / printable views often keep these strings even when the word "Experian" is missing from PDF text extraction.
+      /\bself[\s\-]?reported\s+accounts\b/i,
+      /\baccounts\s+ever\s+late\b/i,
+      /\boverall\s+credit\s+usage\b/i,
+      /\bcredit\s+card\s+and\s+credit\s+line\s+debt\b/i,
+      /\bfico[\s\u00ae\u2122]*\s*score\s*8\b/i,
+    ],
   },
   { id: 'transunion', patterns: [/\btransunion\b/i, /transunion\.com/i, /\btruecredit\b/i] },
 ]
@@ -212,7 +228,20 @@ export function detectBureau(text) {
     score: sig.patterns.reduce((acc, pattern) => acc + (pattern.test(text) ? 1 : 0), 0),
   }))
   counts.sort((a, b) => b.score - a.score)
-  return counts[0]?.score > 0 ? counts[0].id : null
+  if (counts[0]?.score > 0) {
+    return counts[0].id
+  }
+
+  // Last-resort: Experian's printable / "now" report PDFs sometimes extract almost no branding text
+  // (logos as images) but still include the FICO 8 header plus summary rows together.
+  const hasFico8 = /\bfico[\s\u00ae\u2122]*\s*score\s*8\b/i.test(text)
+  const hasExperianSummaryRow =
+    /\bself[\s\-]?reported\s+accounts\b/i.test(text) && /\baccounts\s+ever\s+late\b/i.test(text)
+  if (hasFico8 && hasExperianSummaryRow) {
+    return 'experian'
+  }
+
+  return null
 }
 
 /**

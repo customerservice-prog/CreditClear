@@ -890,7 +890,11 @@ function renderWizardStep({
       <div className="card-t">Upload your credit report (screenshots or files)</div>
       <div className="card-s">
         Most people finish this flow with <em>phone screenshots</em> or exports from their bureau site — PDF is optional. Upload at least one file here <em>or</em> make sure you entered creditor names on the previous step; otherwise letter generation is blocked.
-        Label each upload for the bureau it belongs to (or Combined). Downloadable PDFs let us parse tradelines on your Credit Reports page; images are still stored securely and referenced with your dispute.{' '}
+        Label each upload for the bureau it belongs to (or Combined). If parsing says it could not detect a bureau, open{' '}
+        <Link style={{ color: 'var(--gold)' }} to="/credit-reports">
+          Credit Reports
+        </Link>
+        , choose the bureau under <strong>Bureau for parsing</strong>, then Parse or upload again. Downloadable PDFs let us extract tradelines; images stay in your dispute as exhibits.{' '}
         <Link style={{ color: 'var(--gold)' }} to="/credit-reports">
           View saved uploads
         </Link>

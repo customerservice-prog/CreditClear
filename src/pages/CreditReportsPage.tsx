@@ -10,7 +10,15 @@ import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib
 import { isImageUploadMime } from '../lib/validators'
 import { requireSupabase } from '../lib/supabaseClient'
 import { deleteUploadForCurrentUser, listUploadsForCurrentUser } from '../lib/uploadQueries'
-import type { AppTab, UploadRecord } from '../types'
+import { AGENCIES } from '../lib/constants'
+import type { AgencyId, AppTab, UploadRecord } from '../types'
+
+function bureauTagForParseHint(value: string | null | undefined): AgencyId | undefined {
+  if (!value) return undefined
+  const v = value.toLowerCase()
+  if (v === 'equifax' || v === 'experian' || v === 'transunion') return v
+  return undefined
+}
 
 const BUCKET = 'private-uploads'
 
@@ -43,6 +51,7 @@ export function CreditReportsPage({
   const [actionError, setActionError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [parsingId, setParsingId] = useState<string | null>(null)
+  const [parseBureauHint, setParseBureauHint] = useState<AgencyId | ''>('')
 
   const load = useCallback(async () => {
     const supabase = requireSupabase()
@@ -83,7 +92,11 @@ export function CreditReportsPage({
     setActionError('')
     setParsingId(upload.id)
     try {
-      await parseUploadRequest({ uploadId: upload.id })
+      const bureauHint = parseBureauHint || bureauTagForParseHint(upload.report_bureau)
+      await parseUploadRequest({
+        uploadId: upload.id,
+        ...(bureauHint ? { bureauHint } : {}),
+      })
       await load()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not parse this report. Try again in a moment.')
@@ -126,7 +139,10 @@ export function CreditReportsPage({
   async function handleUploadReports(files: FileList | null) {
     setActionError('')
     try {
-      await uploadFiles(files, null, { awaitParse: true })
+      await uploadFiles(files, null, {
+        awaitParse: true,
+        ...(parseBureauHint ? { bureauHint: parseBureauHint } : {}),
+      })
       await load()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Upload failed. Try again.')
@@ -247,6 +263,38 @@ export function CreditReportsPage({
         <div className="card-t">Uploaded reports</div>
         <div className="card-s">
           Stored privately in your account. Open or download any file. Images and PDFs you upload yourself are not pulled automatically from the bureaus by CreditClear.
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 12,
+            marginBottom: 4,
+            padding: '12px 14px',
+            borderRadius: 8,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+            <span style={{ opacity: 0.85 }}>Bureau for parsing</span>
+            <select
+              onChange={(event) => setParseBureauHint(event.target.value as AgencyId | '')}
+              value={parseBureauHint}
+            >
+              <option value="">Auto-detect</option>
+              {AGENCIES.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span style={{ fontSize: 12, opacity: 0.8, flex: '1 1 220px', lineHeight: 1.45 }}>
+            If parsing says no bureau was detected, choose the source (e.g. Experian), then use <strong>Parse</strong> or upload again.
+          </span>
         </div>
         {loading ? (
           <div className="history-list">

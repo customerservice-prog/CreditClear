@@ -19,7 +19,8 @@ const MAX_PDF_BYTES = 9 * 1024 * 1024
  * tradeline / inquiry / public-record rows. Screenshots run through OCR
  * (tesseract.js + sharp). Idempotent: re-running replaces the prior row.
  *
- * Request body: { uploadId: uuid }
+ * Request body: { uploadId: uuid, bureauHint?: 'equifax'|'experian'|'transunion' }
+ *   bureauHint overrides auto-detection (and wins over uploads.report_bureau) when the PDF/OCR text lacks bureau branding.
  * Response:     { reportId, bureau, tradelineCount, inquiryCount, publicRecordCount }
  */
 export default async function handler(request, response) {
@@ -113,7 +114,8 @@ export default async function handler(request, response) {
       )
     }
 
-    const bureauHint = normalizeBureauHint(upload.report_bureau)
+    const bureauHint =
+      normalizeBureauHint(body.bureauHint) || normalizeBureauHint(upload.report_bureau)
     const parsed = parseCreditReportText(extractedText, bureauHint ? { bureauHint } : undefined)
 
     if (!parsed) {

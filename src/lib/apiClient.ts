@@ -1,4 +1,4 @@
-import type { AppUser } from '../types'
+import type { AgencyId, AppUser } from '../types'
 import { getAccessTokenForApi } from './authSession'
 import { requireSupabase } from './supabase'
 
@@ -281,7 +281,7 @@ export async function downloadAccountExport() {
   setTimeout(() => URL.revokeObjectURL(url), 5_000)
 }
 
-export async function parseUploadRequest(body: { uploadId: string }) {
+export async function parseUploadRequest(body: { uploadId: string; bureauHint?: AgencyId }) {
   return apiRequest<{
     reportId: string
     bureau: 'equifax' | 'experian' | 'transunion'
