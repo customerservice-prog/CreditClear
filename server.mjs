@@ -20,6 +20,7 @@ const apiHandlers = {
   '/api/create-portal': () => import('./api/create-portal.js'),
   '/api/generate-dispute-draft': () => import('./api/generate-dispute-draft.js'),
   '/api/generate-letters': () => import('./api/generate-letters.js'),
+  '/api/parse-upload': () => import('./api/parse-upload.js'),
   '/api/save-upload-metadata': () => import('./api/save-upload-metadata.js'),
   '/api/stripe-webhook': () => import('./api/stripe-webhook.js'),
   '/api/waitlist': () => import('./api/waitlist.js'),

@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { ComingSoon } from '../components/ComingSoon'
+import { parseUploadRequest } from '../lib/apiClient'
+import { listCreditReportsForCurrentUser, type CreditReportSummary } from '../lib/creditReportQueries'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
 import { requireSupabase } from '../lib/supabaseClient'
@@ -31,28 +33,60 @@ export function CreditReportsPage({
 }: CreditReportsPageProps) {
   const navigate = useNavigate()
   const [rows, setRows] = useState<UploadRecord[]>([])
+  const [reportSummaries, setReportSummaries] = useState<CreditReportSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [parsingId, setParsingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const supabase = requireSupabase()
     setLoading(true)
     setError('')
-    const result = await listUploadsForCurrentUser(supabase)
+    const [uploadsResult, reportsResult] = await Promise.all([
+      listUploadsForCurrentUser(supabase),
+      listCreditReportsForCurrentUser(supabase),
+    ])
 
     setLoading(false)
-    if (result.error) {
+    if (uploadsResult.error) {
       setError('Could not load your credit report files.')
       return
     }
-    setRows((result.data ?? []) as UploadRecord[])
+    setRows((uploadsResult.data ?? []) as UploadRecord[])
+    setReportSummaries(reportsResult.data)
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  const summariesByUpload = useMemo(() => {
+    const map = new Map<string, CreditReportSummary>()
+    for (const summary of reportSummaries) {
+      if (summary.upload_id) {
+        const existing = map.get(summary.upload_id)
+        if (!existing || existing.pulled_at < summary.pulled_at) {
+          map.set(summary.upload_id, summary)
+        }
+      }
+    }
+    return map
+  }, [reportSummaries])
+
+  async function reparseUpload(upload: UploadRecord) {
+    setActionError('')
+    setParsingId(upload.id)
+    try {
+      await parseUploadRequest({ uploadId: upload.id })
+      await load()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not parse this report. Try again in a moment.')
+    } finally {
+      setParsingId(null)
+    }
+  }
 
   async function openSigned(upload: UploadRecord) {
     setActionError('')
@@ -199,35 +233,66 @@ export function CreditReportsPage({
           <div className="disc">No uploads yet. Start a dispute and add credit report files on the upload step—they will appear here.</div>
         ) : (
           <div className="history-list">
-            {rows.map((upload) => (
-              <div className="history-card" key={upload.id}>
-                <div className="history-head">
-                  <div>
-                    <div className="history-title">{upload.file_name}</div>
-                    <div className="history-sub">
-                      {formatDateLabel(upload.created_at)} · {formatFileSize(upload.file_size)} ·{' '}
-                      {formatReportBureauLabel(upload.report_bureau)}
+            {rows.map((upload) => {
+              const summary = summariesByUpload.get(upload.id)
+              const isPdf = upload.mime_type === 'application/pdf'
+              return (
+                <div className="history-card" key={upload.id}>
+                  <div className="history-head">
+                    <div>
+                      <div className="history-title">{upload.file_name}</div>
+                      <div className="history-sub">
+                        {formatDateLabel(upload.created_at)} · {formatFileSize(upload.file_size)} ·{' '}
+                        {formatReportBureauLabel(upload.report_bureau)}
+                      </div>
+                      {isPdf && (
+                        <div
+                          className="history-sub"
+                          style={{ marginTop: 6, color: summary ? '#9ad8b8' : 'var(--muted)' }}
+                        >
+                          {summary
+                            ? `Parsed: ${summary.tradeline_count} tradeline${
+                                summary.tradeline_count === 1 ? '' : 's'
+                              } · ${summary.inquiry_count} inquir${summary.inquiry_count === 1 ? 'y' : 'ies'} · ${summary.public_record_count} public record${
+                                summary.public_record_count === 1 ? '' : 's'
+                              } (${summary.bureau})`
+                            : parsingId === upload.id
+                              ? 'Parsing report…'
+                              : 'Not parsed yet — click "Re-parse" to try again.'}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      <button className="btn btn-ghost" onClick={() => void openSigned(upload)} type="button">
+                        Open
+                      </button>
+                      <button className="btn btn-gold" onClick={() => void downloadSigned(upload)} type="button">
+                        Download
+                      </button>
+                      {isPdf && (
+                        <button
+                          className="btn btn-ghost"
+                          disabled={parsingId === upload.id}
+                          onClick={() => void reparseUpload(upload)}
+                          type="button"
+                          title="Re-run the credit-report parser against this PDF."
+                        >
+                          {parsingId === upload.id ? 'Parsing…' : summary ? 'Re-parse' : 'Parse'}
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-ghost"
+                        disabled={deletingId === upload.id}
+                        onClick={() => void deleteUpload(upload)}
+                        type="button"
+                      >
+                        {deletingId === upload.id ? 'Deleting…' : 'Delete'}
+                      </button>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    <button className="btn btn-ghost" onClick={() => void openSigned(upload)} type="button">
-                      Open
-                    </button>
-                    <button className="btn btn-gold" onClick={() => void downloadSigned(upload)} type="button">
-                      Download
-                    </button>
-                    <button
-                      className="btn btn-ghost"
-                      disabled={deletingId === upload.id}
-                      onClick={() => void deleteUpload(upload)}
-                      type="button"
-                    >
-                      {deletingId === upload.id ? 'Deleting…' : 'Delete'}
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

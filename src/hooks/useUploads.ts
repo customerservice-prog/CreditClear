@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { saveUploadMetadataRequest } from '../lib/apiClient'
+import { parseUploadRequest, saveUploadMetadataRequest } from '../lib/apiClient'
 import { requireSupabase } from '../lib/supabaseClient'
 import { buildSafeUploadPath, sanitizeUploadFileName, validateUpload } from '../lib/validators'
 import type { CreditFile, UploadRecord } from '../types'
@@ -47,6 +47,14 @@ export function useUploads(userId?: string) {
             })
 
             uploaded.push(mapUploadToCreditFile(metadata.upload))
+
+            // Fire-and-forget: kick off the parser for PDFs so the UI can
+            // show structured tradeline counts on /credit-reports without
+            // blocking the wizard step. Failures here are intentionally
+            // swallowed — the upload itself already succeeded.
+            if (metadata.upload?.id && metadata.upload?.mime_type === 'application/pdf') {
+              void parseUploadRequest({ uploadId: metadata.upload.id }).catch(() => {})
+            }
           } catch (error) {
             await supabase.storage.from(BUCKET).remove([filePath])
             throw error

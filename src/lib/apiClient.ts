@@ -181,6 +181,16 @@ export async function joinWaitlistRequest(body: {
   }
 }
 
+export async function parseUploadRequest(body: { uploadId: string }) {
+  return apiRequest<{
+    reportId: string
+    bureau: 'equifax' | 'experian' | 'transunion'
+    tradelineCount: number
+    inquiryCount: number
+    publicRecordCount: number
+  }>('/api/parse-upload', body, 45_000)
+}
+
 export async function saveUploadMetadataRequest(body: {
   disputeId?: string | null
   fileName: string
