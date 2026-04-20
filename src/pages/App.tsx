@@ -513,7 +513,7 @@ function renderWizardStep({
         </div>
         <div className="fg">
           <div className="f sp">
-            <label htmlFor="dispute-title">Name this dispute (optional)</label>
+            <label htmlFor="dispute-title">Name this dispute</label>
             <input
               id="dispute-title"
               onChange={(event) => onDisputeTitleChange(event.target.value)}
