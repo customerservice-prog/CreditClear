@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { BureauPullCard } from '../components/BureauPullCard'
+import { useAuthContext } from '../context/useAuthContext'
+import { useUploads } from '../hooks/useUploads'
 import { parseUploadRequest } from '../lib/apiClient'
 import { listCreditReportsForCurrentUser, type CreditReportSummary } from '../lib/creditReportQueries'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
@@ -32,6 +34,8 @@ export function CreditReportsPage({
   userDisplayName,
 }: CreditReportsPageProps) {
   const navigate = useNavigate()
+  const { authUser } = useAuthContext()
+  const { uploadFiles, uploading: uploadBusy } = useUploads(authUser?.id)
   const [rows, setRows] = useState<UploadRecord[]>([])
   const [reportSummaries, setReportSummaries] = useState<CreditReportSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -119,6 +123,16 @@ export function CreditReportsPage({
     await load()
   }
 
+  async function handleUploadReports(files: FileList | null) {
+    setActionError('')
+    try {
+      await uploadFiles(files, null, { awaitParse: true })
+      await load()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Upload failed. Try again.')
+    }
+  }
+
   async function downloadSigned(upload: UploadRecord) {
     setActionError('')
     const supabase = requireSupabase()
@@ -192,9 +206,33 @@ export function CreditReportsPage({
               </span>
             </div>
             <div className="card-s">
-              PNG, JPG, WebP, HEIC, or PDF — from any bureau site, MyFICO, Credit Karma, or annualcreditreport.com. We attach
-              every file to your dispute. Use Parse or Re-parse on any row to extract tradelines (OCR for images).
+              PNG, JPG, WebP, HEIC, or PDF — from any bureau site, MyFICO, Credit Karma, or annualcreditreport.com. Upload
+              here to store the file and <strong>parse tradelines immediately</strong> (OCR for images), same as in the dispute
+              wizard. You can still tap Parse on any row later if needed.
             </div>
+            <label
+              className="uz"
+              style={{
+                marginTop: 12,
+                opacity: uploadBusy ? 0.65 : 1,
+                pointerEvents: uploadBusy ? 'none' : undefined,
+              }}
+            >
+              <span className="ui-big">📂</span>
+              <div className="ut">{uploadBusy ? 'Uploading & parsing…' : 'Choose files to upload & parse'}</div>
+              <div className="us">Up to 10 MB per file. Results show in the list below when parsing finishes.</div>
+              <input
+                accept="image/*,.pdf"
+                disabled={uploadBusy}
+                multiple
+                onChange={(event) => {
+                  void handleUploadReports(event.target.files)
+                  event.target.value = ''
+                }}
+                style={{ display: 'none' }}
+                type="file"
+              />
+            </label>
             <div className="btn-row" style={{ marginTop: 10 }}>
               <button className="btn btn-gold" onClick={() => navigate('/disputes/new')} type="button">
                 Start a dispute &amp; upload &rarr;
@@ -230,7 +268,11 @@ export function CreditReportsPage({
           </div>
         ) : rows.length === 0 ? (
           <div className="disc">
-            No uploads yet. Start a dispute and add screenshots or PDFs on the upload step — they will appear here.
+            No uploads yet. Use <strong>Choose files</strong> in the card above, or add files while{' '}
+            <button className="btn btn-ghost" onClick={() => navigate('/disputes/new')} type="button">
+              starting a dispute
+            </button>
+            — everything shows up here.
           </div>
         ) : (
           <div className="history-list">

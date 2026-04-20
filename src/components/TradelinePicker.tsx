@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ISSUES } from '../lib/constants'
 import { formatTradelineMoney, type PickableTradeline } from '../hooks/useTradelines'
-import type { IssueAccountDetail, IssueId } from '../types'
+import type { IssueAccountDetail, IssueDetailsMap, IssueId } from '../types'
 
 interface TradelinePickerProps {
   tradelines: PickableTradeline[]
   loading: boolean
   error: string
   selectedIssues: IssueId[]
+  /** Per-issue form values from the wizard; used to auto-fill the first tradeline when exactly one issue is selected. */
+  issueDetails?: IssueDetailsMap
   /** Called with an issue + a fully-prefilled detail row. The host wires this
    *  to the same callbacks Step 3's manual form uses, so the picker behaves
    *  like a one-click prefill of the existing accordion. */
@@ -30,9 +32,34 @@ export function TradelinePicker({
   loading,
   error,
   selectedIssues,
+  issueDetails,
   onAssignTradeline,
 }: TradelinePickerProps) {
   const [recentlyAssigned, setRecentlyAssigned] = useState<Record<string, IssueId>>({})
+  const lastAutoFillKeyRef = useRef('')
+
+  useEffect(() => {
+    if (loading || error || tradelines.length === 0) return
+    if (selectedIssues.length !== 1) return
+    const issue = selectedIssues[0]
+    const detail = issueDetails?.[issue]
+    if (detail?.creditorName?.trim()) return
+
+    const t = tradelines[0]
+    const balance = formatTradelineMoney(t.balanceCents)
+    const key = `${issue}:${t.id}`
+    if (lastAutoFillKeyRef.current === key) return
+    lastAutoFillKeyRef.current = key
+
+    onAssignTradeline(issue, {
+      creditorName: t.creditor || '',
+      accountLast4: t.accountLast4 || '',
+      amountOrBalance: balance,
+      reportedDate: t.reportedOn || '',
+      disputeReason: '',
+    })
+    setRecentlyAssigned((prev) => ({ ...prev, [t.id]: issue }))
+  }, [loading, error, tradelines, selectedIssues, issueDetails, onAssignTradeline])
 
   if (loading) {
     return (
@@ -63,13 +90,11 @@ export function TradelinePicker({
         }}
       >
         <div className="card-t" style={{ marginBottom: 6 }}>
-          No accounts auto-filled from a past PDF parse
+          No parsed accounts yet
         </div>
         <div className="card-s" style={{ lineHeight: 1.5 }}>
-          That is normal if this is your first upload or you rely on <em>phone screenshots</em> instead of a downloaded PDF.
-          Fill in the creditor and account fields below from what you see on your report — or skip typing here and add{' '}
-          <em>screenshots or PDFs on the next step</em>; those files count as your source and you can keep these boxes
-          short (for example, creditor name only, or &quot;see uploaded screenshot&quot; where appropriate).
+          Use the <strong>upload box above</strong> (or on the Upload step) with a bureau PDF or screenshot — we extract tradelines and you can assign each row to an issue to fill the forms below.
+          If you prefer not to parse, type creditor and account details manually or keep entries short and rely on your uploaded files as the source.
         </div>
       </div>
     )
@@ -88,9 +113,10 @@ export function TradelinePicker({
         Pull from your parsed report ({tradelines.length})
       </div>
       <div className="card-s" style={{ marginBottom: 10 }}>
-        We extracted these tradelines from the credit-report PDFs you uploaded. Pick the issue
-        category for any account you want to dispute — that fills in Step 3 below for you, with
-        the creditor name, account number, balance, and reported date already populated.
+        We extracted these tradelines from the credit-report PDFs you uploaded. If you only selected <strong>one</strong>{' '}
+        issue type above, we pre-fill that row with the first account automatically; use the dropdowns for the rest. For
+        multiple issue types, pick a category per account — that fills the creditor name, account number, balance, and
+        reported date below.
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
         {tradelines.map((tradeline) => {

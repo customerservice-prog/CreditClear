@@ -7,7 +7,7 @@ import { DisputeIssueActionPanel } from '../components/DisputeIssueActionPanel'
 import { IssueStepsLink } from '../components/IssueStepsLink'
 import { TradelinePicker } from '../components/TradelinePicker'
 import { WaitlistCard } from '../components/WaitlistCard'
-import { useTradelines, type PickableTradeline } from '../hooks/useTradelines'
+import type { PickableTradeline } from '../hooks/useTradelines'
 import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
 import { AGENCIES, GENERATION_PHASES, ISSUES, LETTER_TYPE_OPTIONS, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
@@ -38,6 +38,8 @@ interface AppPageProps {
   canAccessApp: boolean
   disputes: DisputeRecord[]
   disputesLoading: boolean
+  /** True while a file is uploading and (when applicable) being parsed for tradelines. */
+  filesUploading: boolean
   onAddFiles: (files: FileList | null) => void
   onAppTabChange: (tab: AppTab) => void
   onAdvanceFromPersonalStep: () => void
@@ -63,6 +65,9 @@ interface AppPageProps {
   onStartAnalysis: () => void
   onUpdateLetterText: (letterId: string, text: string) => void
   statusLabel: string
+  tradelines: PickableTradeline[]
+  tradelinesError: string
+  tradelinesLoading: boolean
   userDisplayName: string
 }
 
@@ -93,6 +98,7 @@ export function AppPage({
   canAccessApp,
   disputes,
   disputesLoading,
+  filesUploading,
   onAddFiles,
   onAdvanceFromPersonalStep,
   onAppTabChange,
@@ -116,6 +122,9 @@ export function AppPage({
   onStartAnalysis,
   onUpdateLetterText,
   statusLabel,
+  tradelines,
+  tradelinesError,
+  tradelinesLoading,
   userDisplayName,
 }: AppPageProps) {
   const [personalFieldErrors, setPersonalFieldErrors] = useState<Partial<Record<keyof AppInfo, string>>>({})
@@ -124,7 +133,6 @@ export function AppPage({
     Boolean(appState.info.lastName) &&
     Boolean(appState.info.email)
   const letterCount = appState.issues.length * (appState.agencies.length || 1)
-  const { tradelines, loading: tradelinesLoading, error: tradelinesError } = useTradelines()
 
   useEffect(() => {
     if (appState.step !== 0) {
@@ -215,6 +223,7 @@ export function AppPage({
           renderGeneratorStep({
             appState,
             canContinueFromPersonal,
+            filesUploading,
             letterCount,
             onAddFiles,
             onAttemptContinuePersonal: () => {
@@ -336,6 +345,7 @@ function DisputesPanel({
 function renderGeneratorStep({
   appState,
   canContinueFromPersonal,
+  filesUploading,
   letterCount,
   onAddFiles,
   onAttemptContinuePersonal,
@@ -362,6 +372,7 @@ function renderGeneratorStep({
 }: {
   appState: AppState
   canContinueFromPersonal: boolean
+  filesUploading: boolean
   letterCount: number
   tradelines: PickableTradeline[]
   tradelinesLoading: boolean
@@ -403,6 +414,7 @@ function renderGeneratorStep({
         {renderWizardStep({
           appState,
           canContinueFromPersonal,
+          filesUploading,
           letterCount,
           onAddFiles,
           onAttemptContinuePersonal,
@@ -582,6 +594,7 @@ function renderGeneratorStep({
 function renderWizardStep({
   appState,
   canContinueFromPersonal,
+  filesUploading,
   letterCount,
   onAddFiles,
   onAttemptContinuePersonal,
@@ -602,6 +615,7 @@ function renderWizardStep({
 }: {
   appState: AppState
   canContinueFromPersonal: boolean
+  filesUploading: boolean
   letterCount: number
   onAddFiles: (files: FileList | null) => void
   onAttemptContinuePersonal: () => void
@@ -722,11 +736,51 @@ function renderWizardStep({
       <div className="card">
         <div className="card-t">Accounts &amp; items you&apos;re disputing</div>
         <div className="card-s">
-          Pick the issue types that match what you see on your credit report (paper, PDF, or phone screenshots). You can type account details below, or rely mainly on <em>uploads on the next step</em> — one clear screenshot per bureau is often enough to pair with these drafts.
+          Pick the issue types that match what you see on your credit report. <strong>Upload a bureau PDF or screenshot below</strong> to extract accounts and pre-fill creditor fields automatically (same as the Upload step). You can still type details manually or add more files on the next step.
           Each combination of bureau × issue gets its own letter with distinct dispute language.
         </div>
+        <label
+          className="uz"
+          style={{
+            marginBottom: 14,
+            opacity: filesUploading ? 0.65 : 1,
+            pointerEvents: filesUploading ? 'none' : undefined,
+          }}
+        >
+          <span className="ui-big">📂</span>
+          <div className="ut">{filesUploading ? 'Uploading & parsing report…' : 'Upload credit report to auto-fill accounts'}</div>
+          <div className="us">
+            PDF or image (PNG, JPG, WebP, HEIC) — we read the file now so the list below fills in. Up to 10 MB per file.
+          </div>
+          <div className="utags">
+            <span className="utag">PDF</span>
+            <span className="utag">Screenshot</span>
+            <span className="utag">Photo</span>
+          </div>
+          <input
+            accept="image/*,.pdf"
+            disabled={filesUploading}
+            multiple
+            onChange={(event) => {
+              onAddFiles(event.target.files)
+              event.target.value = ''
+            }}
+            style={{ display: 'none' }}
+            type="file"
+          />
+        </label>
+        {appState.files.length > 0 ? (
+          <div className="card-s" style={{ marginTop: -6, marginBottom: 14, fontSize: 13 }}>
+            {appState.files.length} file{appState.files.length === 1 ? '' : 's'} attached — label each for its bureau on the{' '}
+            <button className="btn btn-ghost" onClick={() => onGoToStep(3)} style={{ padding: '2px 8px', fontSize: 13 }} type="button">
+              Upload
+            </button>{' '}
+            step when you&apos;re ready.
+          </div>
+        ) : null}
         <TradelinePicker
           error={tradelinesError}
+          issueDetails={appState.issueDetails}
           loading={tradelinesLoading}
           onAssignTradeline={(issue, detail) => {
             if (!appState.issues.includes(issue)) {
@@ -842,9 +896,9 @@ function renderWizardStep({
         </Link>
         .
       </div>
-      <label className="uz">
+      <label className="uz" style={{ opacity: filesUploading ? 0.65 : 1, pointerEvents: filesUploading ? 'none' : undefined }}>
         <span className="ui-big">📂</span>
-        <div className="ut">Drop screenshots or PDFs here</div>
+        <div className="ut">{filesUploading ? 'Uploading & parsing…' : 'Drop screenshots or PDFs here'}</div>
         <div className="us">
           Camera roll, screen capture, or bureau &quot;download PDF&quot; — all supported up to 10 MB per file.
         </div>
@@ -854,7 +908,17 @@ function renderWizardStep({
           <span className="utag">PDF</span>
           <span className="utag">HEIC</span>
         </div>
-        <input accept="image/*,.pdf" multiple onChange={(event) => onAddFiles(event.target.files)} style={{ display: 'none' }} type="file" />
+        <input
+          accept="image/*,.pdf"
+          disabled={filesUploading}
+          multiple
+          onChange={(event) => {
+            onAddFiles(event.target.files)
+            event.target.value = ''
+          }}
+          style={{ display: 'none' }}
+          type="file"
+        />
       </label>
       <div className="ulist">
         {appState.files.map((file, index) => (

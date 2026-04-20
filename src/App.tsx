@@ -21,6 +21,7 @@ import {
   validateMailingAddressForLetters,
 } from './lib/validators'
 import { useDisputes } from './hooks/useDisputes'
+import { useTradelines } from './hooks/useTradelines'
 import { useUploads } from './hooks/useUploads'
 import { FOCUS_LETTER_CARD_EVENT, type FocusLetterCardDetail } from './lib/issueActionGuides'
 import { validateFileCoverageForAgencies } from './lib/reportCoverage'
@@ -179,7 +180,8 @@ function AppRoutes() {
   const [appState, setAppState] = useState(createInitialState)
   const letterSaveTimers = useRef<Record<string, number>>({})
   const { disputes, error: disputesError, getDetail, loading: disputesLoading, refresh: refreshDisputes, setDisputes, updateLetterText } = useDisputes(authUser?.id)
-  const { uploadFiles } = useUploads(authUser?.id)
+  const { uploadFiles, uploading: filesUploading } = useUploads(authUser?.id)
+  const { tradelines, loading: tradelinesLoading, error: tradelinesError, reload: reloadTradelines } = useTradelines(authUser?.id)
 
   /** Wizard (/disputes/new): expand the letter accordion when jumping from an issue guide link. */
   useEffect(() => {
@@ -921,13 +923,14 @@ function AppRoutes() {
 
   async function addFiles(files: FileList | null) {
     try {
-      const nextFiles = await uploadFiles(files, appState.currentDisputeId ?? null)
+      const nextFiles = await uploadFiles(files, appState.currentDisputeId ?? null, { awaitParse: true })
       setAppState((previous) => ({
         ...previous,
         files: [...previous.files, ...nextFiles],
       }))
       if (nextFiles.length) {
         trackEvent('upload_completed', { count: nextFiles.length })
+        await reloadTradelines()
       }
     } catch (error) {
       captureClientError(error, { flow: 'upload' })
@@ -1392,6 +1395,7 @@ function AppRoutes() {
                 canAccessApp={subscription.canAccessApp}
                 disputes={disputes}
                 disputesLoading={disputesLoading}
+                filesUploading={filesUploading}
                 onAddFiles={(files) => void addFiles(files)}
                 onAdvanceFromPersonalStep={() => void handleAdvanceFromPersonalStep()}
                 onAppTabChange={handleWorkspaceTabChange}
@@ -1461,6 +1465,9 @@ function AppRoutes() {
                 onStartAnalysis={() => void startAnalysis()}
                 onUpdateLetterText={(letterId, text) => void saveLetterEdit(letterId, text)}
                 statusLabel={subscription.statusLabel}
+                tradelines={tradelines}
+                tradelinesError={tradelinesError}
+                tradelinesLoading={tradelinesLoading}
                 userDisplayName={userDisplayName}
               />
             ) : (

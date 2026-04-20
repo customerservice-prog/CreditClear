@@ -15,12 +15,17 @@ export function useUploads(userId?: string) {
   const [uploading, setUploading] = useState(false)
 
   const uploadFiles = useCallback(
-    async (files: FileList | null, disputeId?: string | null) => {
+    async (
+      files: FileList | null,
+      disputeId?: string | null,
+      options?: { awaitParse?: boolean },
+    ) => {
       if (!files?.length || !userId) {
         return [] as CreditFile[]
       }
 
       setUploading(true)
+      const awaitParse = options?.awaitParse ?? false
       try {
         const supabase = requireSupabase()
         const uploaded: CreditFile[] = []
@@ -62,7 +67,11 @@ export function useUploads(userId?: string) {
               metadata.upload?.id &&
               (mime === 'application/pdf' || isImageUploadMime(mime))
             ) {
-              void parseUploadRequest({ uploadId: metadata.upload.id }).catch(() => {})
+              if (awaitParse) {
+                await parseUploadRequest({ uploadId: metadata.upload.id })
+              } else {
+                void parseUploadRequest({ uploadId: metadata.upload.id }).catch(() => {})
+              }
             }
           } catch (error) {
             await supabase.storage.from(BUCKET).remove([filePath])

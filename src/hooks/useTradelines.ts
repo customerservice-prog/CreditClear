@@ -34,16 +34,17 @@ interface UseTradelinesResult {
  * is missing — useful in environments where the PR 2 migration hasn't been
  * applied yet.
  */
-export function useTradelines(): UseTradelinesResult {
+export function useTradelines(userId?: string): UseTradelinesResult {
   const [tradelines, setTradelines] = useState<PickableTradeline[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [hasParsedReport, setHasParsedReport] = useState(false)
 
   const reload = useCallback(async () => {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !userId) {
       setTradelines([])
       setHasParsedReport(false)
+      setLoading(false)
       return
     }
     const supabase = requireSupabase()
@@ -100,7 +101,7 @@ export function useTradelines(): UseTradelinesResult {
 
     setTradelines(flat)
     setHasParsedReport(flat.length > 0)
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     void reload()
