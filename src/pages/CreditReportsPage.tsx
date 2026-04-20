@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
+import { ComingSoon } from '../components/ComingSoon'
+import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
 import { requireSupabase } from '../lib/supabaseClient'
 import { deleteUploadForCurrentUser, listUploadsForCurrentUser } from '../lib/uploadQueries'
@@ -26,6 +29,7 @@ export function CreditReportsPage({
   statusLabel,
   userDisplayName,
 }: CreditReportsPageProps) {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<UploadRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -115,6 +119,58 @@ export function CreditReportsPage({
       subheading="Every report you upload to CreditClear is listed here. Label each file with the right bureau in the dispute workflow so drafts match the correct report."
       userDisplayName={userDisplayName}
     >
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="card-t">Connect your credit report</div>
+        <div className="card-s">
+          Two ways to get your report data into CreditClear. Pick whichever is fastest for you today.
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 14,
+            marginTop: 12,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              borderColor: 'rgba(48, 200, 120, 0.4)',
+              background: 'linear-gradient(180deg, rgba(48, 200, 120, 0.06), rgba(255,255,255,0.02))',
+            }}
+          >
+            <div className="card-t" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span>Upload a PDF</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  padding: '3px 8px',
+                  borderRadius: 999,
+                  background: 'rgba(48, 200, 120, 0.15)',
+                  color: '#30c878',
+                  border: '1px solid rgba(48, 200, 120, 0.4)',
+                }}
+              >
+                Live
+              </span>
+            </div>
+            <div className="card-s">
+              Drop in a PDF from any bureau, MyFICO, Credit Karma, or annualcreditreport.com. We&apos;ll attach it to
+              your dispute and use the contents when generating letters.
+            </div>
+            <div className="btn-row" style={{ marginTop: 10 }}>
+              <button className="btn btn-gold" onClick={() => navigate('/disputes/new')} type="button">
+                Start a dispute &amp; upload &rarr;
+              </button>
+            </div>
+          </div>
+          <ComingSoon feature={FEATURE_FLAGS.bureau_connect} source="credit_reports_hero" />
+        </div>
+      </div>
+
       <div className="card">
         <div className="card-t">Uploaded reports</div>
         <div className="card-s">

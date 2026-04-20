@@ -1,28 +1,17 @@
 import { applyCors } from './_lib/cors.js'
 import { assertPremiumAccess, ensureAccountState } from './_lib/account.js'
+import { BUREAU_MAILING } from './_lib/bureauMail.js'
 import { extractTextFromBureauUploads } from './_lib/extract-report-text.js'
 import { normalizeGenerationRequest } from './_lib/generation.js'
 import { ApiError, sendError, toSseErrorMessage } from './_lib/http.js'
 import { assertRateLimit } from './_lib/rate-limit.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
-import {
-  ALLOWED_AGENCIES,
-  ALLOWED_ISSUES,
-  sanitizeText,
-} from './_lib/validation.js'
-import { generateAiDisputeParagraph } from './_lib/ai-dispute-draft.js'
+import { sanitizeText } from './_lib/validation.js'
 
 const AGENCIES = {
   equifax: 'Equifax',
   experian: 'Experian',
   transunion: 'TransUnion',
-}
-
-/** Consumer reporting agency mail-only dispute channels (confirm at bureau site before mailing). */
-const BUREAU_MAILING = {
-  equifax: ['Equifax Information Services LLC', 'P.O. Box 740256', 'Atlanta, GA 30348'],
-  experian: ['Experian', 'P.O. Box 4500', 'Allen, TX 75013'],
-  transunion: ['TransUnion Consumer Solutions', 'P.O. Box 2000', 'Chester, PA 19022-2000'],
 }
 
 const ISSUES = {
@@ -121,8 +110,10 @@ function buildLetterSections({
     bureauMailLines?.length > 0 ? bureauMailLines : [agencyName, 'Confirm the current mail-in dispute address on the bureau website.']
 
   const accountSpecific = buildAccountSpecificParagraph(issueMeta, issueDetail)
-  const extractedSnippet = String(extracted?.text || '').trim()
-  const hasExtract = extractedSnippet.length > 0
+  // Note: raw PDF text is intentionally NOT pasted into letters anymore.
+  // Bureaus reject letters that look like a wall of OCR'd report text. Structured
+  // tradeline parsing lands in PR 3 and feeds buildAccountSpecificParagraph properly.
+  void extracted
 
   /** @type {string[]} */
   const lines = [
@@ -165,18 +156,9 @@ function buildLetterSections({
     lines.push(accountSpecific, '')
   }
 
-  if (hasExtract) {
-    lines.push(
-      'The following excerpt was extracted from my uploaded credit-report PDF for your bureau (machine-read text — I have reviewed it against my copy; please verify independently):',
-      '',
-      extractedSnippet.slice(0, 12000),
-      '',
-    )
-  }
-
   lines.push(disputePara, '')
 
-  if (!accountSpecific && !hasExtract) {
+  if (!accountSpecific) {
     lines.push(
       `I dispute the accuracy or completeness of reported information for this category (${issueMeta.label}) on my ${agencyName} consumer report and request your reinvestigation.`,
       '',
@@ -208,7 +190,7 @@ function buildLetterSections({
     .replace(/\n{3,}/g, '\n\n')
 }
 
-async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
+function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
   const agencies = normalizedRequest.agencies?.length
     ? normalizedRequest.agencies
     : Object.keys(AGENCIES)
@@ -216,7 +198,6 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
   const info = normalizedRequest.info || {}
   const issueDetails = normalizedRequest.issueDetails || {}
   const letterList = []
-  const hasAiKey = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)
 
   for (const agency of agencies) {
     const forBureau = uploadsForAgency(resolvedUploads, agency)
@@ -227,20 +208,9 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
     for (const issue of issues) {
       const issueMeta = ISSUES[issue] || { label: issue }
       const issueDetail = issueDetails[issue] || null
-      const fallbackTemplate = () =>
-        ISSUE_DISPUTE_PARAGRAPH[issue]?.(agencyName) || ISSUE_DISPUTE_PARAGRAPH.late(agencyName)
 
-      const disputePara = hasAiKey
-        ? await generateAiDisputeParagraph({
-            agencyName,
-            extractedText: extracted.text || '',
-            fallback: fallbackTemplate,
-            info,
-            issue,
-            issueDetail,
-            issueLabel: issueMeta.label,
-          })
-        : fallbackTemplate()
+      const disputePara =
+        ISSUE_DISPUTE_PARAGRAPH[issue]?.(agencyName) || ISSUE_DISPUTE_PARAGRAPH.late(agencyName)
 
       const text = buildLetterSections({
         agencyName,
@@ -262,21 +232,15 @@ async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extract
     }
   }
 
-  const summaryParts = [
-    hasAiKey
-      ? 'Drafts use AI where API keys are configured, plus extracted PDF text when available; verify every fact before sending.'
-      : 'Configure OPENAI_API_KEY or ANTHROPIC_API_KEY on the server for AI-written dispute paragraphs; otherwise structured FCRA-style templates are used.',
-    'Report excerpt text is machine-read and may contain errors — compare to your official bureau file.',
-  ]
-
   return JSON.stringify({
     recommendations: [
-      'Read the entire letter and every line extracted from your PDF; automated text can miss columns or mix pages.',
-      'Upload the bureau’s official PDF (not only a photo) for this bureau, label it correctly, and regenerate for the fullest draft.',
-      'Keep proof of mailing or filing through each bureau’s official dispute channel.',
+      'Read every line of each letter before mailing — accuracy is your responsibility.',
+      'Upload the bureau\u2019s official PDF (not a photo) and label it for the right bureau so future drafts can cite specific tradelines.',
+      'Keep proof of mailing through each bureau\u2019s official dispute channel (certified mail with return receipt is the standard).',
     ],
     letters: letterList,
-    summary: summaryParts.join(' '),
+    summary:
+      'Letters are built from FCRA-aligned templates plus the account details you entered in the wizard. Tradeline-level parsing of uploaded reports is rolling out next; for now, fill in creditor and account details on the Accounts step for the most specific letters.',
   })
 }
 
@@ -349,7 +313,7 @@ export default async function handler(request, response) {
 
     sendEvent(response, { type: 'status', message: 'Drafting dispute letters…' })
 
-    const text = await buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
+    const text = buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)

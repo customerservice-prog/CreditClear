@@ -25,11 +25,6 @@ export interface Issue {
   icon: string
 }
 
-export interface AnalysisStep {
-  icon: string
-  txt: string
-}
-
 /** Bureau-specific file, tri-merge, or unset (treated as applicable to any bureau until labeled). */
 export type ReportBureauTag = AgencyId | 'combined'
 

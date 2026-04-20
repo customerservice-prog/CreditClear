@@ -1,6 +1,6 @@
-import type { Agency, AnalysisStep, AppState, Issue } from '../types'
+import type { Agency, AppState, Issue } from '../types'
 
-export const STEPS = ['Personal Info', 'Agencies', 'Issues', 'Upload', 'Letters']
+export const STEPS = ['Personal Info', 'Agencies', "Accounts & items you're disputing", 'Upload', 'Letters']
 
 export const AGENCIES: Agency[] = [
   { id: 'equifax', name: 'Equifax' },
@@ -23,13 +23,29 @@ export const ISSUES: Issue[] = [
   { id: 'med', label: 'Medical Debt', icon: '🏥' },
 ]
 
-export const ANALYSIS_STEPS: AnalysisStep[] = [
-  { icon: '🔍', txt: 'Scanning credit report for negative items...' },
-  { icon: '⚖️', txt: 'Identifying FCRA & FDCPA violation grounds...' },
-  { icon: '📊', txt: 'Analyzing account histories & discrepancies...' },
-  { icon: '✍️', txt: 'Drafting legally-grounded dispute letters...' },
-  { icon: '✅', txt: 'Finalizing & optimizing letter effectiveness...' },
-]
+// Real backend phases of letter generation, in execution order. The wizard highlights
+// whichever phase is currently active based on SSE status messages from the server.
+// Nothing here is cosmetic — every label maps to a real server-side step.
+export const GENERATION_PHASES = [
+  { id: 'scan', icon: '📥', label: 'Reviewing your uploads and selections' },
+  { id: 'read', icon: '📑', label: 'Reading text from your credit-report files' },
+  { id: 'draft', icon: '✍️', label: 'Drafting your dispute letters' },
+  { id: 'finalize', icon: '📦', label: 'Finalizing letters for download' },
+] as const
+
+export type GenerationPhaseId = (typeof GENERATION_PHASES)[number]['id']
+
+/**
+ * Map the freeform server status message to one of the generation phases above.
+ * Strings come from api/generate-letters.js sendEvent({ type: 'status', message }).
+ */
+export function generationPhaseForMessage(message: string): GenerationPhaseId {
+  const lower = message.toLowerCase()
+  if (lower.startsWith('reading') || lower.includes('report pdf')) return 'read'
+  if (lower.includes('drafting')) return 'draft'
+  if (lower.includes('finalizing') || lower.includes('generated')) return 'finalize'
+  return 'scan'
+}
 
 export const PILLS: Record<string, string> = {
   equifax: 'peq',
@@ -39,7 +55,7 @@ export const PILLS: Record<string, string> = {
 }
 
 export const GENERATOR_TABS = [
-  { id: 'generator', label: 'Dispute Engine' },
+  { id: 'generator', label: 'Dispute Workflow' },
   { id: 'disputes', label: 'My Disputes' },
 ] as const
 

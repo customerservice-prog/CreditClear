@@ -28,6 +28,11 @@ import { getBlogPostBySlug } from './data/blogPosts'
 import { getPublicEnv } from './lib/publicEnv'
 import { SITE_URL } from './lib/site'
 
+const ProPage = lazy(() => import('./pages/ProPage').then((module) => ({ default: module.ProPage })))
+const ScoreSimulatorPage = lazy(() =>
+  import('./pages/ScoreSimulatorPage').then((module) => ({ default: module.ScoreSimulatorPage })),
+)
+const LetterTypesPage = lazy(() => import('./pages/LetterTypesPage').then((module) => ({ default: module.LetterTypesPage })))
 const BillingPage = lazy(() => import('./pages/BillingPage').then((module) => ({ default: module.BillingPage })))
 const BlogIndexPage = lazy(() => import('./pages/BlogIndexPage').then((module) => ({ default: module.BlogIndexPage })))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage').then((module) => ({ default: module.BlogPostPage })))
@@ -88,8 +93,23 @@ const PAGE_META: Record<string, { description: string; title: string }> = {
   },
   '/pricing': {
     description:
-      'CreditClear AI pricing for AI-assisted credit dispute letters: start with a free 7-day trial, then $49/month. Organize Equifax, Experian, and TransUnion disputes in one workflow.',
-    title: 'Credit Repair Software Pricing | AI Credit Dispute Tool | CreditClear AI',
+      "New CreditClear subscriptions are paused while we rebuild billing for our no-advance-fee model. Join the founders' waitlist to lock in launch pricing.",
+    title: "Founders' Waitlist | CreditClear AI",
+  },
+  '/pro': {
+    description:
+      'CreditClear Pro for credit consultants: multi-client dashboards, bulk letter generation, white-label letterhead, and CROA-compliant billing. Coming soon.',
+    title: 'CreditClear Pro for Credit Consultants | CreditClear AI',
+  },
+  '/score-simulator': {
+    description:
+      'Educational, transparent simulator that estimates how a successful credit dispute could affect score signals like utilization and account age. Coming soon.',
+    title: 'Credit Score Impact Simulator | CreditClear AI',
+  },
+  '/letter-types': {
+    description:
+      'The full CreditClear letter library: bureau initial dispute, MOV, furnisher §1681s-2(b), debt validation §1692g, goodwill, and CFPB complaint.',
+    title: 'Dispute Letter Library | CreditClear AI',
   },
   '/reset-password': {
     description: 'Set a new CreditClear password after opening the secure link from your email.',
@@ -1419,6 +1439,36 @@ function AppRoutes() {
           }
         />
           <Route
+            path="/pro"
+            element={
+              <ProPage
+                onHome={() => navigate('/')}
+                onSignIn={() => navigate('/login')}
+                onStartTrial={() => navigate('/signup')}
+              />
+            }
+          />
+          <Route
+            path="/score-simulator"
+            element={
+              <ScoreSimulatorPage
+                onHome={() => navigate('/')}
+                onSignIn={() => navigate('/login')}
+                onStartTrial={() => navigate('/signup')}
+              />
+            }
+          />
+          <Route
+            path="/letter-types"
+            element={
+              <LetterTypesPage
+                onHome={() => navigate('/')}
+                onSignIn={() => navigate('/login')}
+                onStartTrial={() => navigate('/signup')}
+              />
+            }
+          />
+          <Route
             path="*"
             element={
               <NotFoundPage
@@ -1465,7 +1515,18 @@ function routeRequiresSessionGate(pathname: string): boolean {
 }
 
 function isPublicIndexablePath(pathname: string): boolean {
-  const exact = new Set(['/', '/pricing', '/blog', '/contact', '/privacy', '/terms', '/disclaimer'])
+  const exact = new Set([
+    '/',
+    '/pricing',
+    '/blog',
+    '/contact',
+    '/privacy',
+    '/terms',
+    '/disclaimer',
+    '/pro',
+    '/score-simulator',
+    '/letter-types',
+  ])
   if (exact.has(pathname)) {
     return true
   }

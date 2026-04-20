@@ -1,4 +1,6 @@
 import { AppShell } from '../components/layout/AppShell'
+import { ComingSoon } from '../components/ComingSoon'
+import { FEATURE_FLAGS } from '../lib/featureFlags'
 import type { AppTab, AppUser } from '../types'
 
 interface SettingsPageProps {
@@ -60,6 +62,10 @@ export function SettingsPage({
             Sign Out
           </button>
         </div>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <ComingSoon feature={FEATURE_FLAGS.certified_mail} source="settings_cert_mail_panel" />
       </div>
     </AppShell>
   )

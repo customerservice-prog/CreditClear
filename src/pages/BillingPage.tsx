@@ -1,6 +1,6 @@
 import type { AppTab } from '../types'
 import { AppShell } from '../components/layout/AppShell'
-import { PricingCard } from '../components/PricingCard'
+import { WaitlistCard } from '../components/WaitlistCard'
 import { formatDateLabel } from '../lib/formatters'
 
 interface BillingPageProps {
@@ -9,7 +9,11 @@ interface BillingPageProps {
   billingLoading: boolean
   currentPeriodEnd?: string | null
   onAppTabChange?: (tab: AppTab) => void
-  onBeginCheckout: () => void
+  /**
+   * Reserved for when checkout reopens; while billing is paused this prop is
+   * unused. Kept on the interface so the call-site does not need to change.
+   */
+  onBeginCheckout?: () => void
   onManageBilling: () => void
   onShowHome: () => void
   onSignOut: () => void
@@ -24,7 +28,6 @@ export function BillingPage({
   billingLoading,
   currentPeriodEnd,
   onAppTabChange,
-  onBeginCheckout,
   onManageBilling,
   onShowHome,
   onSignOut,
@@ -45,13 +48,15 @@ export function BillingPage({
       onHomeClick={onShowHome}
       onSignOut={onSignOut}
       statusLabel={statusLabel}
-      subheading="CreditClear Pro unlocks dispute-draft generation, saved sessions, and private file-backed workflows."
+      subheading="If you have an active subscription, manage it here. New subscriptions are paused while we rebuild billing for our no-advance-fee model."
       userDisplayName={userDisplayName}
     >
       <div className="dash-grid">
         <div className="card">
-          <div className="card-t">Current Status</div>
-          <div className="card-s">Status: <strong style={{ color: 'var(--gold)' }}>{statusLabel}</strong></div>
+          <div className="card-t">Current status</div>
+          <div className="card-s">
+            Status: <strong style={{ color: 'var(--gold)' }}>{statusLabel}</strong>
+          </div>
           <div className="disc">
             Trial end: {formatDateLabel(trialEndsAt)}
             <br />
@@ -59,17 +64,21 @@ export function BillingPage({
           </div>
           <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
             <button className="btn btn-ghost" disabled={billingLoading} onClick={onManageBilling} type="button">
-              Manage Billing
+              Manage billing
             </button>
+          </div>
+          <div className="disc" style={{ marginTop: 12, opacity: 0.8 }}>
+            Existing subscribers keep full access. The &quot;Manage billing&quot; button opens your secure Stripe portal
+            where you can update your payment method, download invoices, or cancel.
           </div>
         </div>
         <div className="price-wrap">
-          <PricingCard
-            badge="✓ CreditClear Pro"
-            buttonLabel="Continue to Checkout →"
-            loading={billingLoading}
-            note="Use Stripe Checkout to activate or renew your subscription. CreditClear provides drafting assistance and organization tools only, not legal advice."
-            onClick={onBeginCheckout}
+          <WaitlistCard
+            featureId="stripe_checkout"
+            source="billing_page"
+            badge="✦ Checkout paused"
+            title="Founders' waitlist"
+            note="We're rebuilding billing to a CROA-compliant, bill-per-letter model. New checkouts reopen as soon as that lands. Join the waitlist to be the first to know."
           />
         </div>
       </div>

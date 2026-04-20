@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
-import { PricingCard } from '../components/PricingCard'
+import { ComingSoon } from '../components/ComingSoon'
+import { WaitlistCard } from '../components/WaitlistCard'
 import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
-import { AGENCIES, ANALYSIS_STEPS, ISSUES, PILLS, STEPS } from '../lib/constants'
+import { AGENCIES, GENERATION_PHASES, ISSUES, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
+import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import { getPersonalFieldErrors } from '../lib/validators'
 import type {
@@ -21,7 +23,11 @@ import type {
 
 interface AppPageProps {
   appState: AppState
-  billingLoading: boolean
+  /**
+   * Reserved for when checkout reopens; while billing is paused these props are unused.
+   * Kept on the interface so the call-site does not need to change shape.
+   */
+  billingLoading?: boolean
   billingMessage: string
   canAccessApp: boolean
   disputes: DisputeRecord[]
@@ -29,7 +35,8 @@ interface AppPageProps {
   onAddFiles: (files: FileList | null) => void
   onAppTabChange: (tab: AppTab) => void
   onAdvanceFromPersonalStep: () => void
-  onBeginCheckout: () => void
+  /** Reserved for when checkout reopens; currently unused (see billingLoading). */
+  onBeginCheckout?: () => void
   onDisputeTitleChange: (value: string) => void
   onDownloadAll: () => void
   onDownloadLetter: (letter: Letter) => void
@@ -75,7 +82,6 @@ const infoFieldMap: Array<{
 
 export function AppPage({
   appState,
-  billingLoading,
   billingMessage,
   canAccessApp,
   disputes,
@@ -83,7 +89,6 @@ export function AppPage({
   onAddFiles,
   onAdvanceFromPersonalStep,
   onAppTabChange,
-  onBeginCheckout,
   onDisputeTitleChange,
   onDownloadAll,
   onDownloadLetter,
@@ -134,7 +139,7 @@ export function AppPage({
       <div className="app-wrap">
         <div className="app-hdr">
           <div className="app-badge">
-            <div className="pulse-dot"></div> Dispute Engine
+            <div className="pulse-dot"></div> Dispute Workflow
           </div>
           <h1>
             Review Every <em>Reporting Issue</em>
@@ -147,16 +152,13 @@ export function AppPage({
 
         {!canAccessApp ? (
           <div className="price-wrap">
-            <PricingCard
-              badge="✓ Subscription Required"
-              buttonLabel="Activate Pro Subscription →"
-              loading={billingLoading}
+            <WaitlistCard
+              badge="✦ Subscription paused"
+              title="Founders' waitlist"
               note={
                 billingMessage ||
-                'Your free trial has ended. Subscribe to CreditClear Pro to keep generating dispute letter drafts and access your saved disputes.'
+                "New subscriptions are paused while we rebuild billing for our no-advance-fee, bill-per-letter model. Join the founders' waitlist to lock in launch pricing."
               }
-              onClick={onBeginCheckout}
-              title="CreditClear Pro"
             />
           </div>
         ) : appState.tab === 'disputes' ? (
@@ -167,31 +169,39 @@ export function AppPage({
             onLoadDispute={onLoadDispute}
           />
         ) : appState.analyzing ? (
-          <div className="card">
-            <div className="anim">
-              <div className="spin">
-                <div className="sr"></div>
-                <div className="sr"></div>
-                <div className="sr"></div>
-              </div>
-              <div className="anim-h">Building Your Dispute Letters</div>
-              <div className="anim-s">
-                {appState.streamMessage || 'Reviewing your report and assembling dispute drafts bureau by bureau.'}
-              </div>
-              <div className="a-steps">
-                {ANALYSIS_STEPS.map((step, index) => (
-                  <div
-                    className={`a-step${appState.analysisStep > index ? '' : appState.analysisStep === index ? ' current' : ' dim'}`}
-                    key={step.txt}
-                  >
-                    <span className="a-ico">{step.icon}</span>
-                    <span className="a-txt">{step.txt}</span>
-                    {appState.analysisStep > index ? <span className="a-ok">✓ Done</span> : null}
+          (() => {
+            const activePhaseId = generationPhaseForMessage(appState.streamMessage || '')
+            const activeIndex = GENERATION_PHASES.findIndex((phase) => phase.id === activePhaseId)
+            return (
+              <div className="card">
+                <div className="anim">
+                  <div className="spin">
+                    <div className="sr"></div>
+                    <div className="sr"></div>
+                    <div className="sr"></div>
                   </div>
-                ))}
+                  <div className="anim-h">Building Your Dispute Letters</div>
+                  <div className="anim-s">
+                    {appState.streamMessage || 'Reviewing your selections and uploads.'}
+                  </div>
+                  <div className="a-steps">
+                    {GENERATION_PHASES.map((phase, index) => (
+                      <div
+                        className={`a-step${
+                          index < activeIndex ? '' : index === activeIndex ? ' current' : ' dim'
+                        }`}
+                        key={phase.id}
+                      >
+                        <span className="a-ico">{phase.icon}</span>
+                        <span className="a-txt">{phase.label}</span>
+                        {index < activeIndex ? <span className="a-ok">✓ Done</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )
+          })()
         ) : (
           renderGeneratorStep({
             appState,
@@ -467,6 +477,58 @@ function renderGeneratorStep({
           ↓ Download all as PDF
         </button>
       </div>
+
+      <div className="card-t" style={{ marginTop: 28 }}>
+        Mail your letters
+      </div>
+      <div className="card-s">
+        Two ways to get your letters into the bureau&apos;s mail stream. Pick whichever fits your timeline.
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 14,
+          marginTop: 12,
+        }}
+      >
+        <div
+          className="card"
+          style={{
+            borderColor: 'rgba(48, 200, 120, 0.4)',
+            background: 'linear-gradient(180deg, rgba(48, 200, 120, 0.06), rgba(255,255,255,0.02))',
+          }}
+        >
+          <div className="card-t" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span>Download &amp; mail yourself</span>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                padding: '3px 8px',
+                borderRadius: 999,
+                background: 'rgba(48, 200, 120, 0.15)',
+                color: '#30c878',
+                border: '1px solid rgba(48, 200, 120, 0.4)',
+              }}
+            >
+              Live
+            </span>
+          </div>
+          <div className="card-s">
+            Print your PDF letters and mail them USPS Certified Mail with Return Receipt. We recommend keeping copies of
+            everything you send.
+          </div>
+          <div className="btn-row" style={{ marginTop: 8 }}>
+            <button className="btn btn-gold" onClick={onDownloadAll} type="button">
+              ↓ Download all PDFs
+            </button>
+          </div>
+        </div>
+        <ComingSoon feature={FEATURE_FLAGS.certified_mail} source="wizard_step5_mail_tile" />
+      </div>
     </div>
   )
 }
@@ -604,9 +666,9 @@ function renderWizardStep({
     const allSelected = appState.issues.length === ISSUES.length
     return (
       <div className="card">
-        <div className="card-t">What&apos;s on Your Report?</div>
+        <div className="card-t">Accounts &amp; items you&apos;re disputing</div>
         <div className="card-s">
-          Select issue types, then add creditor / account details for each (or rely on a credit report upload in the next step). Each combination of bureau × issue gets its own draft with distinct dispute language.
+          Pick the issue types that match what you see on your report, then enter the creditor / account details for each. Each combination of bureau × issue gets its own draft with distinct dispute language.
         </div>
         <button className="sa-btn" onClick={() => onSetSelectedIssues(allSelected ? [] : ISSUES.map((item) => item.id))} type="button">
           {allSelected ? 'Deselect All' : 'Select All Issues'}

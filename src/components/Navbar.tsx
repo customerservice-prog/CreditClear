@@ -49,7 +49,7 @@ export function Navbar({
                 onClick={() => onAppTabChange('generator')}
                 type="button"
               >
-                Dispute Engine
+                Dispute Workflow
               </button>
               <button
                 className={`app-tab-btn${appTab === 'disputes' ? ' active' : ''}`}

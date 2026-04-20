@@ -2,25 +2,24 @@ import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
-import { PricingCard } from '../components/PricingCard'
-import { trackEvent } from '../lib/analytics'
-import { CTA_TRIAL_LABEL, SITE_URL } from '../lib/site'
+import { WaitlistCard } from '../components/WaitlistCard'
+import { SITE_URL } from '../lib/site'
 
 const PRICING_FAQ = [
   {
     answer:
-      'CreditClear Pro is $49/month after a free 7-day trial. You can cancel before the trial ends without being charged when no card is required at signup—see current signup copy for the latest policy.',
-    question: 'How much does CreditClear cost after the trial?',
+      "New subscription checkouts are paused while we migrate billing to a CROA-compliant, no-advance-fee, bill-per-letter model. Join the founders' waitlist on this page and we'll email you the moment checkout reopens. Existing subscribers keep their current plan with no changes.",
+    question: 'Why is checkout closed right now?',
   },
   {
     answer:
-      'The plan includes the guided dispute workspace, AI-assisted draft generation you must review, secure uploads aligned to issue categories, and organization for Equifax, Experian, and TransUnion targeting. It is not legal representation or guaranteed credit repair outcomes.',
-    question: 'What is included in the monthly plan?',
+      'Founding members get the lowest pricing CreditClear will ever offer, locked for life, plus first access to round tracking, certified mail, and the score impact simulator as those features go live.',
+    question: 'What do founding members get?',
   },
   {
     answer:
-      'CreditClear helps you draft and organize disputes; it does not mail letters for you or negotiate with creditors. You decide what to send and when.',
-    question: 'Does CreditClear send disputes for me?',
+      'CreditClear helps you draft, organize, and (soon) certified-mail dispute letters under FCRA, FDCPA, and §1681s-2(b). It is not legal representation and we do not guarantee credit repair outcomes.',
+    question: 'What does CreditClear actually do?',
   },
   {
     answer:
@@ -29,8 +28,8 @@ const PRICING_FAQ = [
   },
   {
     answer:
-      'Cancel according to the billing instructions in your account. Draft assistance is educational; keep copies of letters you already downloaded.',
-    question: 'How do I cancel?',
+      'Yes. The waitlist is just an email list — no card, no commitment. Unsubscribe links are in every email we send.',
+    question: 'Can I unsubscribe from the waitlist?',
   },
 ] as const
 
@@ -54,7 +53,6 @@ export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps
           '@type': 'SoftwareApplication',
           applicationCategory: 'FinanceApplication',
           name: 'CreditClear AI',
-          offers: { '@type': 'Offer', price: '49', priceCurrency: 'USD', url: `${SITE_URL}/pricing` },
           operatingSystem: 'Web',
           url: `${SITE_URL}/pricing`,
         },
@@ -85,47 +83,40 @@ export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps
       <MarketingMain>
         <div className="hero" style={{ maxWidth: 900, paddingBottom: 24, textAlign: 'center' }}>
           <div className="hero-badge">
-            <div className="pulse-dot"></div> Pricing
+            <div className="pulse-dot"></div> Founders&apos; waitlist open
           </div>
           <h1>
-            AI <em>Credit Dispute Letter</em> Tool — Simple Monthly Pricing
+            New checkout is <em>paused</em> while we rebuild billing
           </h1>
           <p className="hero-sub" style={{ margin: '0 auto', maxWidth: 720 }}>
-            Organize <strong>credit report</strong> errors, draft <strong>FCRA-oriented dispute letters</strong> for{' '}
-            <strong>Equifax</strong>, <strong>Experian</strong>, and <strong>TransUnion</strong>, and keep everything in
-            one workflow. This is <strong>not credit repair</strong> representation—it's review-ready software for people
-            who want to handle their own <strong>credit disputes</strong> carefully.
+            We&apos;re moving CreditClear to a CROA-compliant, no-advance-fee, bill-per-letter model. Until that ships,
+            new subscriptions are closed. Join the founders&apos; waitlist below to lock in the lowest pricing
+            CreditClear will ever offer and get first access as features go live.
           </p>
         </div>
 
         <div className="section" style={{ paddingTop: 0 }}>
           <h2 className="sec-title" style={{ textAlign: 'center' }}>
-            Why <em>credit repair software pricing</em> varies
+            Why we paused <em>new checkout</em>
           </h2>
           <p className="disc" style={{ maxWidth: 720, margin: '0 auto 20px', textAlign: 'center' }}>
-            Some tools only mail form letters. Others charge large setup fees then monthly retainers. CreditClear prices as
-            accessible <strong>credit repair software</strong> with AI-assisted drafting: you bring the facts, the app helps
-            you structure <strong>dispute letter</strong> language for review. That model keeps costs predictable while
-            still demanding your attention—because no ethical vendor should promise automatic deletions of accurate
-            negatives or a magically higher <strong>credit score</strong>.
+            The Credit Repair Organizations Act forbids charging consumers in advance for credit-repair services. The old
+            $49/month-up-front model was on the wrong side of that line for the kind of automated dispute work we&apos;re
+            now building. Rather than keep collecting before the new product is ready, we paused new signups and are
+            rebuilding billing to charge per letter mailed, after the work is done.
           </p>
           <p className="disc" style={{ maxWidth: 720, margin: '0 auto 28px', textAlign: 'center' }}>
-            Whether you are comparing DIY templates, law-adjacent services, or modern AI workflows, evaluate total cost of
-            ownership: hours spent formatting letters, postage, monitoring, and emotional bandwidth. For many households,
-            $49/month is cheaper than unpaid weekends lost to copy-paste errors—especially when{' '}
-            <Link to="/blog/credit-repair-software-vs-diy-disputes">DIY vs software tradeoffs</Link> are understood up
-            front.
+            If you were comparing DIY templates and law-adjacent services, the{' '}
+            <Link to="/blog/credit-repair-software-vs-diy-disputes">DIY vs software tradeoffs</Link> guide on the blog is
+            still the most honest read in the space.
           </p>
           <div className="price-wrap">
-            <PricingCard
-              buttonLabel={CTA_TRIAL_LABEL}
-              note="After trial, CreditClear Pro is $49/month. Cancel anytime. Draft assistance only—not legal advice."
-              onClick={() => {
-                trackEvent('cta_click', { location: 'pricing_page', target: 'signup' })
-                onStartTrial()
-              }}
-            />
+            <WaitlistCard />
           </div>
+          <p className="disc" style={{ marginTop: 16, textAlign: 'center', opacity: 0.7 }}>
+            Existing subscribers: nothing changes for you. Manage your subscription from the{' '}
+            <Link to="/billing">Billing page</Link> as usual.
+          </p>
         </div>
 
         <div className="section" style={{ paddingTop: 0, maxWidth: 820, margin: '0 auto' }}>
@@ -133,17 +124,21 @@ export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps
             What you get <em>in the workflow</em>
           </h2>
           <p className="disc">
-            The product centers on a guided path from personal details through bureau targets and issue categories. You can
-            attach supporting documents (with redactions you control) so AI summaries align with the exhibits you intend to
-            cite. Outputs are editable drafts—never mail-ready without your review. That design mirrors how serious consumers
-            already work when they read <Link to="/blog/how-to-dispute-credit-report-errors">step-by-step dispute</Link>{' '}
-            articles and still want faster typing help.
+            The product centers on a guided path from personal details through bureau targets and the accounts you want
+            to dispute. You can attach supporting documents (with redactions you control) so the letter cites the right
+            exhibits. Outputs are editable drafts—never mail-ready without your review. That design mirrors how serious
+            consumers already work when they read{' '}
+            <Link to="/blog/how-to-dispute-credit-report-errors">step-by-step dispute</Link> articles and still want
+            faster typing help.
           </p>
           <p className="disc">
-            You also gain continuity: saved disputes, structured issue lists, and less context-switching between spreadsheets
-            and word processors. If you are simultaneously researching <Link to="/blog/609-letter-vs-dispute-letter">609 vs
-            standard letters</Link> or <Link to="/blog/fcra-dispute-rights-explained">FCRA basics</Link>, the app keeps your
-            narrative consistent across bureaus.
+            You also gain continuity: saved disputes, structured issue lists, and less context-switching between
+            spreadsheets and word processors. See the full{' '}
+            <Link to="/letter-types">letter library</Link> for what ships at launch and what unlocks for founding
+            members. If you are simultaneously researching{' '}
+            <Link to="/blog/609-letter-vs-dispute-letter">609 vs standard letters</Link> or{' '}
+            <Link to="/blog/fcra-dispute-rights-explained">FCRA basics</Link>, the app keeps your narrative consistent
+            across bureaus.
           </p>
         </div>
 
@@ -177,8 +172,7 @@ export function PricingPage({ onHome, onSignIn, onStartTrial }: PricingPageProps
         <div className="section" style={{ paddingTop: 0, textAlign: 'center' }}>
           <p className="disc" style={{ maxWidth: 640, margin: '0 auto 20px' }}>
             Read the <Link to="/blog">blog</Link> for deep dives, compare bureau guides above, or return{' '}
-            <Link to="/">home</Link>. Ready to try the workflow?{' '}
-            <Link to="/signup">Create your account</Link>.
+            <Link to="/">home</Link>.
           </p>
         </div>
 

@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { HOME_FAQ_ITEMS } from '../data/homeFaq'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
-import { PricingCard } from '../components/PricingCard'
+import { WaitlistCard } from '../components/WaitlistCard'
 import { trackEvent } from '../lib/analytics'
+import { FEATURE_FLAGS, statusBadgeLabel } from '../lib/featureFlags'
 import { ISSUES } from '../lib/constants'
 import { CTA_TRIAL_LABEL, SITE_URL } from '../lib/site'
 
@@ -121,17 +122,18 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           />
         </div>
         <div className="hero-badge">
-          <div className="pulse-dot"></div> AI-assisted credit dispute letters
+          <div className="pulse-dot"></div> Automated FCRA dispute workspace
         </div>
-        <h1>AI-Powered Credit Dispute Letters — Ready in Minutes</h1>
+        <h1>Credit Dispute Letters &mdash; Ready in Minutes</h1>
         <p className="hero-sub">
-          Dispute <strong>credit report</strong> errors with <strong>AI-assisted draft dispute letters</strong> you edit
-          and verify yourself. CreditClear AI is <strong>credit repair software</strong> for organization and drafting—not
-          representation—built around <strong>FCRA</strong>-style workflows for <strong>Equifax</strong>,{' '}
+          Dispute <strong>credit report</strong> errors with <strong>automated, FCRA-aligned draft letters</strong> you
+          edit and verify yourself. CreditClear is <strong>credit repair software</strong> for organization and
+          drafting&mdash;not representation&mdash;built around the bureau dispute process for <strong>Equifax</strong>,{' '}
           <strong>Experian</strong>, and <strong>TransUnion</strong>. Whether you are learning{' '}
           <strong>how to dispute a credit report</strong> or you already know which tradelines look wrong, start from a
           structured workflow instead of a blank page. Your <strong>credit score</strong> still depends on accurate
-          reporting and real-world outcomes—this tool helps you prepare clearer <strong>credit dispute</strong> communications.
+          reporting and real-world outcomes&mdash;this tool helps you prepare clearer <strong>credit dispute</strong>{' '}
+          communications.
         </p>
         <div className="hero-btns">
           <button
@@ -253,15 +255,14 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
           <div className="pc">
             <div className="pnum">02</div>
             <span aria-hidden="true" className="pico emoji">
-              🤖
+              ⚙️
             </span>
-            <div className="ptitle">AI Analyzes Everything</div>
+            <div className="ptitle">We assemble your letters</div>
             <div className="pdesc">
-              The model summarizes what you entered, highlights themes that often matter in bureau investigations, and
-              generates editable <strong>dispute letter</strong> text aligned to the issues you selected. This is not a
-              substitute for verifying dates, balances, and account ownership—those facts still belong to you—but it
-              accelerates turning messy notes into structured language you can refine for <strong>Equifax</strong>,{' '}
-              <strong>Experian</strong>, or <strong>TransUnion</strong> channels.
+              CreditClear builds an FCRA-aligned <strong>dispute letter</strong> for each (bureau, issue) combination
+              you selected, populating creditor name, account number, and dispute reason from what you entered. You
+              still own the facts—dates, balances, account ownership—but the formatting, statutory citations, and
+              bureau addresses are filled in for you.
             </div>
           </div>
           <div className="pc">
@@ -399,29 +400,96 @@ export function Home({ onScrollTo, onSignIn, onStartTrial }: HomeProps) {
         </div>
       </div>
 
+      <div className="section" id="capabilities-sec" style={{ paddingTop: 0 }}>
+        <div className="sec-lbl" style={{ textAlign: 'center' }}>
+          The full roadmap
+        </div>
+        <h2 className="sec-title" style={{ textAlign: 'center', marginBottom: 12 }}>
+          What ships <em>today</em> &mdash; and what&apos;s next
+        </h2>
+        <p className="disc" style={{ maxWidth: 760, margin: '0 auto 28px', textAlign: 'center' }}>
+          Honest scope: one capability is live at launch. The other five are scaffolded with real pages, real waitlists,
+          and event-based ETAs. Tell us which features matter most to you and we&apos;ll prioritize them.
+        </p>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 16,
+            maxWidth: 1100,
+            margin: '0 auto',
+          }}
+        >
+          {[
+            FEATURE_FLAGS.upload_credit_report,
+            FEATURE_FLAGS.bureau_connect,
+            FEATURE_FLAGS.tradeline_editing,
+            FEATURE_FLAGS.letter_types_six,
+            FEATURE_FLAGS.certified_mail,
+            FEATURE_FLAGS.score_simulator,
+          ].map((feature) => {
+            const isLive = feature.status === 'live'
+            return (
+              <Link
+                key={feature.id}
+                to={feature.route}
+                className="pc"
+                style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}
+                onClick={() =>
+                  trackEvent('home_capability_click', {
+                    feature_id: feature.id,
+                    status: feature.status,
+                  })
+                }
+              >
+                <span aria-hidden="true" className="pico emoji">
+                  {feature.icon}
+                </span>
+                <div className="ptitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span>{feature.label}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      background: isLive ? 'rgba(48, 200, 120, 0.15)' : 'rgba(212, 175, 55, 0.15)',
+                      color: isLive ? '#30c878' : 'var(--gold, #d4af37)',
+                      border: `1px solid ${isLive ? 'rgba(48, 200, 120, 0.4)' : 'rgba(212, 175, 55, 0.4)'}`,
+                    }}
+                  >
+                    {statusBadgeLabel(feature.status)}
+                  </span>
+                </div>
+                <div className="pdesc">{feature.description}</div>
+                {feature.eta ? (
+                  <div className="disc" style={{ marginTop: 4, opacity: 0.75, fontSize: 13 }}>
+                    {feature.eta}
+                  </div>
+                ) : null}
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="section" id="pricing-sec" style={{ paddingTop: 0 }}>
         <div className="sec-lbl" style={{ textAlign: 'center' }}>
-          Pricing
+          Founders&apos; waitlist
         </div>
         <h2 className="sec-title" style={{ marginBottom: 44, textAlign: 'center' }}>
-          One plan. Everything included.
+          New checkout is paused.
           <br />
-          <em>Built for focused monthly use.</em>
+          <em>Lock in launch pricing.</em>
         </h2>
         <div className="price-wrap">
-          <PricingCard
-            buttonLabel={CTA_TRIAL_LABEL}
-            note="Start your 7-day free trial with no credit card required. CreditClear provides educational organization tools and editable draft assistance only."
-            onClick={() => {
-              trackEvent('cta_click', { location: 'pricing', target: 'signup' })
-              onStartTrial()
-            }}
-          />
+          <WaitlistCard />
         </div>
         <p className="disc" style={{ margin: '28px auto 0', maxWidth: 640, textAlign: 'center' }}>
-          Looking for a dedicated URL to share? Visit the <Link to="/pricing">CreditClear pricing page</Link> for the same
-          plan details, keyword context on <strong>credit repair software pricing</strong>, and links back to bureau and
-          blog resources.
+          We&apos;re rebuilding billing to be CROA-compliant — no advance fees, billed only after letters mail. Visit the{' '}
+          <Link to="/pricing">pricing page</Link> for the full explanation.
         </p>
       </div>
 

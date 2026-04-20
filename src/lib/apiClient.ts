@@ -131,6 +131,56 @@ export async function createAccountRequest(body: {
   }
 }
 
+export async function joinWaitlistRequest(body: {
+  email: string
+  featureId: string
+  source?: string
+}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DEFAULT_API_TIMEOUT_MS)
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    try {
+      const token = await getAccessTokenForApi()
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+    } catch {
+      /* anonymous waitlist signup is allowed */
+    }
+
+    const response = await fetch('/api/waitlist', {
+      method: 'POST',
+      signal: controller.signal,
+      headers,
+      body: JSON.stringify(body),
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('application/json')) {
+      throw new Error(
+        response.ok
+          ? 'Server returned a non-JSON response. Try again in a moment.'
+          : `Could not save your spot (${response.status}).`,
+      )
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as JsonResponse & { ok?: boolean }
+    if (!response.ok) {
+      throw new Error(payload.error || 'Could not save your spot. Try again in a moment.')
+    }
+    return payload
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Request timed out. Try again in a moment.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function saveUploadMetadataRequest(body: {
   disputeId?: string | null
   fileName: string

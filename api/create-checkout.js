@@ -5,6 +5,16 @@ import { ApiError, sendError } from './_lib/http.js'
 import { ensureStripeCustomer, stripe } from './_lib/stripe.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
 
+/**
+ * Stripe checkout for new subscriptions is paused while we migrate to a
+ * no-advance-fee, bill-per-letter model (CROA-compliant). Existing subscribers
+ * keep their access — only NEW signups are blocked. The marketing site routes
+ * users to /pricing where they can join the founders' waitlist instead, so this
+ * endpoint should never fire from normal navigation; it is a safety net for
+ * stale tabs that still have the old checkout call cached.
+ */
+const NEW_CHECKOUT_PAUSED = true
+
 export default async function handler(request, response) {
   if (applyCors(request, response)) {
     return
@@ -16,6 +26,15 @@ export default async function handler(request, response) {
   }
 
   try {
+    if (NEW_CHECKOUT_PAUSED) {
+      response.status(503).json({
+        error:
+          "We've paused new subscription checkouts while we upgrade billing to a per-letter model. Your existing subscription (if any) is unaffected. Join the founders' waitlist on the pricing page to be the first to know when checkout reopens.",
+        code: 'checkout_paused',
+      })
+      return
+    }
+
     const authUser = await getAuthenticatedUser(request)
     const appUrl = getAppUrl()
     const priceId = getRequiredEnv('STRIPE_PRICE_ID')
