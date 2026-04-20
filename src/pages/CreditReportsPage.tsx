@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
-import { ComingSoon } from '../components/ComingSoon'
+import { BureauPullCard } from '../components/BureauPullCard'
 import { parseUploadRequest } from '../lib/apiClient'
 import { listCreditReportsForCurrentUser, type CreditReportSummary } from '../lib/creditReportQueries'
-import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
 import { requireSupabase } from '../lib/supabaseClient'
 import { deleteUploadForCurrentUser, listUploadsForCurrentUser } from '../lib/uploadQueries'
@@ -201,7 +200,7 @@ export function CreditReportsPage({
               </button>
             </div>
           </div>
-          <ComingSoon feature={FEATURE_FLAGS.bureau_connect} source="credit_reports_hero" />
+          <BureauPullCard onPulled={() => void load()} />
         </div>
       </div>
 

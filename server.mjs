@@ -24,6 +24,7 @@ const apiHandlers = {
   '/api/generate-dispute-draft': () => import('./api/generate-dispute-draft.js'),
   '/api/generate-letters': () => import('./api/generate-letters.js'),
   '/api/parse-upload': () => import('./api/parse-upload.js'),
+  '/api/pull-report': () => import('./api/pull-report.js'),
   '/api/save-upload-metadata': () => import('./api/save-upload-metadata.js'),
   '/api/stripe-webhook': () => import('./api/stripe-webhook.js'),
   '/api/waitlist': () => import('./api/waitlist.js'),

@@ -18,6 +18,10 @@ export default function handler(request, response) {
   const monthlyPriceCents = parseInt(process.env.STRIPE_MONTHLY_PRICE_CENTS || '', 10)
   const planName = process.env.STRIPE_PLAN_NAME || 'CreditClear Pro'
 
+  const aggregatorRaw = (process.env.AGGREGATOR_ENABLED || '').trim().toLowerCase()
+  const aggregatorOpen =
+    aggregatorRaw === '1' || aggregatorRaw === 'true' || aggregatorRaw === 'yes' || aggregatorRaw === 'on'
+
   response.statusCode = 200
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
   response.setHeader('Cache-Control', 'public, max-age=60')
@@ -26,6 +30,7 @@ export default function handler(request, response) {
       checkout_open: !paused,
       plan_name: planName,
       monthly_price_cents: Number.isFinite(monthlyPriceCents) ? monthlyPriceCents : null,
+      aggregator_open: aggregatorOpen,
     }),
   )
 }

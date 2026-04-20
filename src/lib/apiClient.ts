@@ -79,6 +79,18 @@ export interface BillingStatus {
   checkout_open: boolean
   plan_name: string
   monthly_price_cents: number | null
+  aggregator_open: boolean
+}
+
+export async function pullAggregatorReportRequest(body: { bureau: 'equifax' | 'experian' | 'transunion' }) {
+  return apiRequest<{
+    reportId: string
+    bureau: string
+    source: string
+    tradelineCount: number
+    inquiryCount: number
+    publicRecordCount: number
+  }>('/api/pull-report', body)
 }
 
 /**
