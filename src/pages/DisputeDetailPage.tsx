@@ -14,9 +14,11 @@ import type { AppTab, DisputeDetail, IssueId, Letter } from '../types'
 interface DisputeDetailPageProps {
   appMessage?: string
   appTab?: AppTab
+  deletingDisputeId: string | null
   detail: DisputeDetail | null
   loading: boolean
   onAppTabChange?: (tab: AppTab) => void
+  onDeleteDispute?: () => void
   onDownloadLetter: (text: string, fileName: string) => void
   onOpenInGenerator?: () => void
   onSaveLetterEdit: (letterId: string, text: string) => void
@@ -30,9 +32,11 @@ interface DisputeDetailPageProps {
 export function DisputeDetailPage({
   appMessage,
   appTab,
+  deletingDisputeId,
   detail,
   loading,
   onAppTabChange,
+  onDeleteDispute,
   onDownloadLetter,
   onOpenInGenerator,
   onSaveLetterEdit,
@@ -93,6 +97,19 @@ export function DisputeDetailPage({
                 <div className="sml">Issues — what to do</div>
               </a>
             </div>
+            {onDeleteDispute ? (
+              <div className="btn-row" style={{ flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                <button
+                  className="btn btn-ghost"
+                  disabled={deletingDisputeId === detail.id}
+                  onClick={onDeleteDispute}
+                  style={{ color: 'rgba(248, 113, 113, 0.95)' }}
+                  type="button"
+                >
+                  {deletingDisputeId === detail.id ? 'Deleting…' : 'Delete dispute'}
+                </button>
+              </div>
+            ) : null}
             <DisputeIssueActionPanel
               id="issue-action-guides"
               issueDetails={detail.issue_account_details ?? undefined}

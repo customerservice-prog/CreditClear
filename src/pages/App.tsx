@@ -54,6 +54,7 @@ interface AppPageProps {
   billingLoading?: boolean
   billingMessage: string
   canAccessApp: boolean
+  deletingDisputeId: string | null
   disputes: DisputeRecord[]
   disputesLoading: boolean
   /** True while a file is uploading and (when applicable) being parsed for tradelines. */
@@ -70,6 +71,7 @@ interface AppPageProps {
   onFieldChange: <K extends keyof AppInfo>(field: K, value: AppInfo[K]) => void
   onIssueDetailChange: (issue: IssueId, patch: Partial<IssueAccountDetail>) => void
   onGoToStep: (step: number) => void
+  onDeleteDispute: (disputeId: string) => void
   onLoadDispute: (record: DisputeRecord) => void
   onRemoveFile: (index: number) => void
   onResetApp: () => void
@@ -117,6 +119,7 @@ export function AppPage({
   appState,
   billingMessage,
   canAccessApp,
+  deletingDisputeId,
   disputes,
   disputesLoading,
   filesUploading,
@@ -130,6 +133,7 @@ export function AppPage({
   onFieldChange,
   onIssueDetailChange,
   onGoToStep,
+  onDeleteDispute,
   onLoadDispute,
   onRemoveFile,
   onResetApp,
@@ -223,8 +227,10 @@ export function AppPage({
           </div>
         ) : appState.tab === 'disputes' ? (
           <DisputesPanel
+            deletingDisputeId={deletingDisputeId}
             disputes={disputes}
             disputesLoading={disputesLoading}
+            onDeleteDispute={onDeleteDispute}
             onDownloadLetter={onDownloadLetter}
             onLoadDispute={onLoadDispute}
           />
@@ -313,13 +319,17 @@ export function AppPage({
 }
 
 function DisputesPanel({
+  deletingDisputeId,
   disputes,
   disputesLoading,
+  onDeleteDispute,
   onDownloadLetter,
   onLoadDispute,
 }: {
+  deletingDisputeId: string | null
   disputes: DisputeRecord[]
   disputesLoading: boolean
+  onDeleteDispute: (disputeId: string) => void
   onDownloadLetter: (letter: Letter) => void
   onLoadDispute: (record: DisputeRecord) => void
 }) {
@@ -354,9 +364,20 @@ function DisputesPanel({
                     {record.issue_categories.length} issue{record.issue_categories.length === 1 ? '' : 's'}
                   </div>
                 </div>
-                <button className="btn btn-ghost" onClick={() => onLoadDispute(record)} type="button">
-                  Open in Generator
-                </button>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost" onClick={() => onLoadDispute(record)} type="button">
+                    Open in Generator
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    disabled={deletingDisputeId === record.id}
+                    onClick={() => onDeleteDispute(record.id)}
+                    style={{ color: 'rgba(248, 113, 113, 0.95)' }}
+                    type="button"
+                  >
+                    {deletingDisputeId === record.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
               </div>
               <div className="history-letters">
                 {(record.letters || []).map((letter) => (

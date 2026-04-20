@@ -116,6 +116,19 @@ export function useDisputes(userId?: string) {
     }
   }, [])
 
+  /** Deletes the dispute row; letters cascade. Uploads keep their rows (dispute_id nulled) unless removed on Credit Reports. */
+  const removeDispute = useCallback(
+    async (disputeId: string) => {
+      const supabase = requireSupabase()
+      const { error } = await supabase.from('disputes').delete().eq('id', disputeId)
+      if (error) {
+        throw error
+      }
+      await refresh()
+    },
+    [refresh],
+  )
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void refresh().catch(() => undefined)
@@ -130,6 +143,7 @@ export function useDisputes(userId?: string) {
     getDetail,
     loading,
     refresh,
+    removeDispute,
     setDisputes,
     updateLetterText,
   }

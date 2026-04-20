@@ -6,10 +6,12 @@ import type { AppTab, DisputeRecord } from '../types'
 interface DashboardPageProps {
   appMessage?: string
   appTab?: AppTab
+  deletingDisputeId: string | null
   disputes: DisputeRecord[]
   disputesError?: string
   disputesLoading: boolean
   onAppTabChange?: (tab: AppTab) => void
+  onDeleteDispute: (id: string) => void
   onOpenBilling: () => void
   onOpenDispute: (id: string) => void
   onOpenNewDispute: () => void
@@ -23,10 +25,12 @@ interface DashboardPageProps {
 export function DashboardPage({
   appMessage,
   appTab,
+  deletingDisputeId,
   disputes,
   disputesError,
   disputesLoading,
   onAppTabChange,
+  onDeleteDispute,
   onOpenBilling,
   onOpenDispute,
   onOpenNewDispute,
@@ -128,9 +132,20 @@ export function DashboardPage({
                       {dispute.bureau_targets.length} bureaus
                     </div>
                   </div>
-                  <button className="btn btn-ghost" onClick={() => onOpenDispute(dispute.id)} type="button">
-                    Open
-                  </button>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+                    <button className="btn btn-ghost" onClick={() => onOpenDispute(dispute.id)} type="button">
+                      Open
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      disabled={deletingDisputeId === dispute.id}
+                      onClick={() => onDeleteDispute(dispute.id)}
+                      style={{ color: 'rgba(248, 113, 113, 0.95)' }}
+                      type="button"
+                    >
+                      {deletingDisputeId === dispute.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

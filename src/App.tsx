@@ -183,7 +183,17 @@ function AppRoutes() {
   const [signupAcceptedTerms, setSignupAcceptedTerms] = useState(false)
   const [appState, setAppState] = useState(createInitialState)
   const letterSaveTimers = useRef<Record<string, number>>({})
-  const { disputes, error: disputesError, getDetail, loading: disputesLoading, refresh: refreshDisputes, setDisputes, updateLetterText } = useDisputes(authUser?.id)
+  const {
+    disputes,
+    error: disputesError,
+    getDetail,
+    loading: disputesLoading,
+    refresh: refreshDisputes,
+    removeDispute,
+    setDisputes,
+    updateLetterText,
+  } = useDisputes(authUser?.id)
+  const [deletingDisputeId, setDeletingDisputeId] = useState<string | null>(null)
   const { uploadFiles, uploading: filesUploading } = useUploads(authUser?.id)
   const { tradelines, loading: tradelinesLoading, error: tradelinesError, reload: reloadTradelines } = useTradelines(authUser?.id)
 
@@ -998,6 +1008,35 @@ function AppRoutes() {
     }
   }
 
+  async function handleDeleteDispute(disputeId: string) {
+    if (
+      !window.confirm(
+        'Delete this saved dispute and its letters? This cannot be undone. Uploaded files may still appear under Credit Reports until you remove them there.',
+      )
+    ) {
+      return
+    }
+    setDeletingDisputeId(disputeId)
+    setBillingMessage('')
+    try {
+      await removeDispute(disputeId)
+      if (appState.currentDisputeId === disputeId) {
+        resetApp()
+      }
+      if (disputeDetail?.id === disputeId) {
+        setDisputeDetail(null)
+      }
+      if (location.pathname === `/disputes/${disputeId}`) {
+        navigate('/disputes/new')
+      }
+    } catch (error) {
+      captureClientError(error, { flow: 'dispute_delete' })
+      setBillingMessage(error instanceof Error ? error.message : 'Could not delete that dispute.')
+    } finally {
+      setDeletingDisputeId(null)
+    }
+  }
+
   function loadDisputeIntoGenerator(detail: DisputeDetail) {
     setAppState((previous) => ({
       ...previous,
@@ -1366,10 +1405,12 @@ function AppRoutes() {
               <DashboardPage
                 appMessage={billingMessage}
                 appTab="disputes"
+                deletingDisputeId={deletingDisputeId}
                 disputes={disputes}
                 disputesError={disputesError}
                 disputesLoading={disputesLoading}
                 onAppTabChange={handleWorkspaceTabChange}
+                onDeleteDispute={(id) => void handleDeleteDispute(id)}
                 onOpenBilling={() => navigate('/billing')}
                 onOpenDispute={(id) => void loadDispute(id)}
                 onOpenNewDispute={() => navigate('/disputes/new')}
@@ -1411,6 +1452,7 @@ function AppRoutes() {
                 billingLoading={billingLoading}
                 billingMessage={billingMessage}
                 canAccessApp={subscription.canAccessApp}
+                deletingDisputeId={deletingDisputeId}
                 disputes={disputes}
                 disputesLoading={disputesLoading}
                 filesUploading={filesUploading}
@@ -1455,6 +1497,7 @@ function AppRoutes() {
                   setAppState((previous) => ({ ...previous, step }))
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }}
+                onDeleteDispute={(id) => void handleDeleteDispute(id)}
                 onLoadDispute={(record) => void loadDispute(record.id)}
                 onRemoveFile={(index) =>
                   setAppState((previous) => ({
@@ -1499,9 +1542,11 @@ function AppRoutes() {
             authUser ? (
               <DisputeDetailRoute
                 appMessage={billingMessage}
+                deletingDisputeId={deletingDisputeId}
                 detail={disputeDetail}
                 detailLoading={detailLoading}
                 onAppTabChange={handleWorkspaceTabChange}
+                onDeleteDispute={(id) => void handleDeleteDispute(id)}
                 onDownloadLetter={downloadLetter}
                 onLoadDetail={getDetail}
                 onOpenInGenerator={loadDisputeIntoGenerator}
@@ -1746,9 +1791,11 @@ function isIssueId(value: string): value is
 
 function DisputeDetailRoute({
   appMessage,
+  deletingDisputeId,
   detail,
   detailLoading,
   onAppTabChange,
+  onDeleteDispute,
   onDownloadLetter,
   onLoadDetail,
   onOpenInGenerator,
@@ -1760,9 +1807,11 @@ function DisputeDetailRoute({
   userId,
 }: {
   appMessage: string
+  deletingDisputeId: string | null
   detail: DisputeDetail | null
   detailLoading: boolean
   onAppTabChange: (tab: 'generator' | 'disputes') => void
+  onDeleteDispute: (id: string) => void
   onDownloadLetter: (text: string, fileName: string) => void
   onLoadDetail: (id: string) => Promise<DisputeDetail>
   onOpenInGenerator: (detail: DisputeDetail) => void
@@ -1800,9 +1849,11 @@ function DisputeDetailRoute({
       <DisputeDetailPage
         appMessage={appMessage}
         appTab="disputes"
+        deletingDisputeId={deletingDisputeId}
         detail={loadedDetail}
         loading={routeLoading || (detailLoading && !loadedDetail)}
         onAppTabChange={onAppTabChange}
+        onDeleteDispute={id ? () => onDeleteDispute(id) : undefined}
         onDownloadLetter={onDownloadLetter}
         onOpenInGenerator={() => loadedDetail ? onOpenInGenerator(loadedDetail) : undefined}
         onSaveLetterEdit={onSaveLetterEdit}
