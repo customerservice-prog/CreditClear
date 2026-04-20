@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AppShell } from '../components/layout/AppShell'
+import { DisputeIssueActionPanel } from '../components/DisputeIssueActionPanel'
 import { DisputeRoundsPanel } from '../components/DisputeRoundsPanel'
 import { ComingSoon } from '../components/ComingSoon'
 import { useMailings, formatPostage, type MailingRow } from '../hooks/useMailings'
 import { getBillingStatus, mailLetterRequest } from '../lib/apiClient'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
+import { isValidIssueId } from '../lib/issueActionGuides'
 import { buildLetterFileName, formatAgencyName, formatDateLabel, formatDisputeStatusLabel } from '../lib/formatters'
-import type { AppTab, DisputeDetail, Letter } from '../types'
+import type { AppTab, DisputeDetail, IssueId, Letter } from '../types'
 
 interface DisputeDetailPageProps {
   appMessage?: string
@@ -80,11 +82,21 @@ export function DisputeDetailPage({
                 <div className="smn">{detail.uploads.length}</div>
                 <div className="sml">Uploads</div>
               </div>
-              <div className="sm">
+              <a
+                className="sm"
+                href="#issue-action-guides"
+                style={{ color: 'inherit', display: 'block', textDecoration: 'none' }}
+                title="Jump to step-by-step guidance for each issue"
+              >
                 <div className="smn">{detail.issue_categories.length}</div>
-                <div className="sml">Issues</div>
-              </div>
+                <div className="sml">Issues — what to do</div>
+              </a>
             </div>
+            <DisputeIssueActionPanel
+              id="issue-action-guides"
+              issueDetails={detail.issue_account_details ?? undefined}
+              issueIds={detail.issue_categories.filter((c): c is IssueId => isValidIssueId(c))}
+            />
             <DisputeLetters
               detail={detail}
               onDownloadLetter={onDownloadLetter}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { ComingSoon } from '../components/ComingSoon'
+import { DisputeIssueActionPanel } from '../components/DisputeIssueActionPanel'
 import { TradelinePicker } from '../components/TradelinePicker'
 import { WaitlistCard } from '../components/WaitlistCard'
 import { useTradelines, type PickableTradeline } from '../hooks/useTradelines'
@@ -436,15 +437,21 @@ function renderGeneratorStep({
           <div className="smn">{appState.letters.length}</div>
           <div className="sml">Letters</div>
         </div>
-        <div className="sm">
+        <a
+          className="sm"
+          href="#issue-action-guides"
+          style={{ color: 'inherit', display: 'block', textDecoration: 'none' }}
+          title="Jump to step-by-step guidance for each issue"
+        >
           <div className="smn">{appState.issues.length}</div>
-          <div className="sml">Issues</div>
-        </div>
+          <div className="sml">Issues — what to do</div>
+        </a>
         <div className="sm">
           <div className="smn">{appState.agencies.length || 1}</div>
           <div className="sml">Bureaus</div>
         </div>
       </div>
+      <DisputeIssueActionPanel id="issue-action-guides" issueDetails={appState.issueDetails} issueIds={appState.issues} />
       {appState.letters.map((letter) => (
         <div className={`lc${appState.openLetter === letter.id ? ' open' : ''}`} key={letter.id}>
           <button
