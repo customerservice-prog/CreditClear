@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getIssueActionGuide, isValidIssueId } from './issueActionGuides'
+import {
+  getIssueActionGuide,
+  issueGuideElementId,
+  isValidIssueId,
+  ISSUE_GUIDE_ID_PREFIX,
+} from './issueActionGuides'
 import type { IssueId } from '../types'
 
 const ALL: IssueId[] = [
@@ -32,5 +37,10 @@ describe('issueActionGuides', () => {
   it('isValidIssueId rejects unknown strings', () => {
     expect(isValidIssueId('late')).toBe(true)
     expect(isValidIssueId('not_an_issue')).toBe(false)
+  })
+
+  it('issueGuideElementId matches hash prefix contract', () => {
+    expect(issueGuideElementId('late')).toBe(`${ISSUE_GUIDE_ID_PREFIX}late`)
+    expect(issueGuideElementId('late').startsWith(ISSUE_GUIDE_ID_PREFIX)).toBe(true)
   })
 })

@@ -198,6 +198,28 @@ export function isValidIssueId(value: string): value is IssueId {
   return ALL_ISSUE_IDS.includes(value as IssueId)
 }
 
+/** DOM id for each issue row in `DisputeIssueActionPanel` (deep links + scroll target). */
+export const ISSUE_GUIDE_ID_PREFIX = 'issue-guide-'
+
+export function issueGuideElementId(issueId: IssueId): string {
+  return `${ISSUE_GUIDE_ID_PREFIX}${issueId}`
+}
+
+/** Window event so letter cards can open a guide even when the hash is unchanged. */
+export const OPEN_ISSUE_GUIDE_EVENT = 'creditclear:open-issue-guide' as const
+
+export interface OpenIssueGuideDetail {
+  issueId: IssueId
+}
+
+/** Updates the URL hash and notifies `DisputeIssueActionPanel` to expand + scroll. */
+export function openIssueGuideNavigation(issueId: IssueId): void {
+  if (typeof window === 'undefined') return
+  const id = issueGuideElementId(issueId)
+  window.history.replaceState(null, '', `#${id}`)
+  window.dispatchEvent(new CustomEvent<OpenIssueGuideDetail>(OPEN_ISSUE_GUIDE_EVENT, { detail: { issueId } }))
+}
+
 /** Optional account context line for the panel header */
 export function formatIssueAccountHint(detail: IssueAccountDetail | undefined): string | null {
   if (!detail?.creditorName?.trim()) return null

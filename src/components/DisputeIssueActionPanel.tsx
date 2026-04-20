@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ISSUES } from '../lib/constants'
-import { formatIssueAccountHint, getIssueActionGuide } from '../lib/issueActionGuides'
+import {
+  ISSUE_GUIDE_ID_PREFIX,
+  OPEN_ISSUE_GUIDE_EVENT,
+  formatIssueAccountHint,
+  getIssueActionGuide,
+  isValidIssueId,
+  issueGuideElementId,
+  type OpenIssueGuideDetail,
+} from '../lib/issueActionGuides'
 import type { IssueAccountDetail, IssueId } from '../types'
 
 interface DisputeIssueActionPanelProps {
@@ -14,10 +22,47 @@ interface DisputeIssueActionPanelProps {
  * After letters are generated, lists each selected dispute issue as a
  * clickable row. Expanding an issue shows educational, actionable steps
  * (what to gather, what to mail, and how it maps to bureau rounds).
+ *
+ * Supports `#issue-guide-{issueId}` deep links and `openIssueGuideNavigation()`
+ * from letter cards.
  */
 export function DisputeIssueActionPanel({ issueIds, issueDetails, id: sectionId }: DisputeIssueActionPanelProps) {
-  const unique = Array.from(new Set(issueIds))
+  const unique = useMemo(() => Array.from(new Set(issueIds)), [issueIds])
   const [openId, setOpenId] = useState<IssueId | null>(unique.length === 1 ? unique[0] : null)
+
+  const scrollIssueGuideIntoView = useCallback((issueId: IssueId) => {
+    window.setTimeout(() => {
+      const el = document.getElementById(issueGuideElementId(issueId))
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }, [])
+
+  // Custom event from letter "View steps" buttons (works when hash unchanged)
+  useEffect(() => {
+    function onOpenGuide(event: Event) {
+      const detail = (event as CustomEvent<OpenIssueGuideDetail>).detail
+      if (!detail?.issueId || !unique.includes(detail.issueId)) return
+      setOpenId(detail.issueId)
+      scrollIssueGuideIntoView(detail.issueId)
+    }
+    window.addEventListener(OPEN_ISSUE_GUIDE_EVENT, onOpenGuide)
+    return () => window.removeEventListener(OPEN_ISSUE_GUIDE_EVENT, onOpenGuide)
+  }, [scrollIssueGuideIntoView, unique])
+
+  // Initial load + browser back/forward: hash #issue-guide-{id}
+  useEffect(() => {
+    function applyHash() {
+      const raw = window.location.hash.replace(/^#/, '')
+      if (!raw.startsWith(ISSUE_GUIDE_ID_PREFIX)) return
+      const id = raw.slice(ISSUE_GUIDE_ID_PREFIX.length)
+      if (!isValidIssueId(id) || !unique.includes(id)) return
+      setOpenId(id)
+      scrollIssueGuideIntoView(id)
+    }
+    applyHash()
+    window.addEventListener('hashchange', applyHash)
+    return () => window.removeEventListener('hashchange', applyHash)
+  }, [scrollIssueGuideIntoView, unique])
 
   if (unique.length === 0) return null
 
@@ -28,7 +73,8 @@ export function DisputeIssueActionPanel({ issueIds, issueDetails, id: sectionId 
       <div className="card-t">What to do for each issue</div>
       <p className="card-s" style={{ marginBottom: 12 }}>
         Click an issue below for step-by-step guidance: what to verify, what to send, and how it fits your dispute rounds.
-        This is educational information only, not legal advice.
+        Use <strong>View steps for this issue</strong> on each letter to jump here. This is educational information only,
+        not legal advice.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {unique.map((issueId) => {
@@ -40,7 +86,9 @@ export function DisputeIssueActionPanel({ issueIds, issueDetails, id: sectionId 
           return (
             <div
               key={issueId}
+              id={issueGuideElementId(issueId)}
               style={{
+                scrollMarginTop: 96,
                 borderRadius: 10,
                 border: isOpen ? '1px solid rgba(212, 175, 55, 0.45)' : '1px solid rgba(255,255,255,0.1)',
                 background: isOpen ? 'rgba(212, 175, 55, 0.06)' : 'rgba(255,255,255,0.02)',

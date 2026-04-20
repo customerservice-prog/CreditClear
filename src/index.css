@@ -349,7 +349,7 @@ a{color:inherit}
 .l-txt{font-size:12.5px;line-height:1.85;color:rgba(242,238,232,.75);white-space:pre-wrap;font-family:'DM Sans',sans-serif;padding-top:16px}
 .l-editor{width:100%;min-height:260px;margin-top:16px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:var(--txt);line-height:1.75;resize:vertical}
 .l-editor:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.08)}
-.l-acts{display:flex;gap:8px;margin-top:14px}
+.l-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
 .b-copy,.b-dl{padding:8px 16px;border-radius:8px;font-size:11px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s;display:flex;align-items:center;gap:5px}
 .b-copy{background:rgba(255,255,255,.07);color:var(--txt);border:1px solid rgba(255,255,255,.1)}
 .b-copy:hover{background:rgba(255,255,255,.12)}

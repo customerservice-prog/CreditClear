@@ -4,6 +4,7 @@ import { MarketingMain, SkipToContent } from '../components/MarketingPageFrame'
 import { Navbar } from '../components/Navbar'
 import { ComingSoon } from '../components/ComingSoon'
 import { DisputeIssueActionPanel } from '../components/DisputeIssueActionPanel'
+import { IssueStepsLink } from '../components/IssueStepsLink'
 import { TradelinePicker } from '../components/TradelinePicker'
 import { WaitlistCard } from '../components/WaitlistCard'
 import { useTradelines, type PickableTradeline } from '../hooks/useTradelines'
@@ -490,6 +491,7 @@ function renderGeneratorStep({
               <button className="b-copy" onClick={() => onDownloadLetter(letter)} type="button">
                 ↓ Download .txt
               </button>
+              <IssueStepsLink issueId={letter.issue} />
             </div>
           </div>
         </div>

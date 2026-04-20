@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppShell } from '../components/layout/AppShell'
 import { DisputeIssueActionPanel } from '../components/DisputeIssueActionPanel'
+import { IssueStepsLink } from '../components/IssueStepsLink'
 import { DisputeRoundsPanel } from '../components/DisputeRoundsPanel'
 import { ComingSoon } from '../components/ComingSoon'
 import { useMailings, formatPostage, type MailingRow } from '../hooks/useMailings'
@@ -213,6 +214,7 @@ function DisputeLetters({ detail, onDownloadLetter, onOpenInGenerator, onSaveLet
                     {mailingBusy === letter.id ? '✉ Mailing…' : '✉ Mail certified'}
                   </button>
                 ) : null}
+                <IssueStepsLink issueId={letter.issue} />
               </div>
               {mailing ? (
                 <div
