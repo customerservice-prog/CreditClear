@@ -3,6 +3,7 @@ import { assertPremiumAccess, ensureAccountState } from './_lib/account.js'
 import { extractTextFromBureauUploads } from './_lib/extract-report-text.js'
 import { normalizeGenerationRequest } from './_lib/generation.js'
 import { ApiError, sendError, toSseErrorMessage } from './_lib/http.js'
+import { lookupFurnisherAddress, renderFurnisherAddressLines } from './_lib/furnisher-lookup.js'
 import { LETTER_TYPE_META, buildLetterText, letterSubject } from './_lib/letter-templates.js'
 import { assertRateLimit } from './_lib/rate-limit.js'
 import { getAuthenticatedUser, supabaseAdmin } from './_lib/supabase-admin.js'
@@ -66,7 +67,7 @@ function uploadsForAgency(resolvedUploads, agency) {
   })
 }
 
-function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
+async function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency) {
   const agencies = normalizedRequest.agencies?.length
     ? normalizedRequest.agencies
     : Object.keys(AGENCIES)
@@ -77,6 +78,14 @@ function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAg
   const typeMeta = LETTER_TYPE_META[letterType] || LETTER_TYPE_META.bureau_initial
   const letterList = []
 
+  // Furnisher / validation / goodwill letters are addressed to the
+  // creditor or collector, not the bureau. Pre-resolve the recipient
+  // address once per (issue,creditorName) so we don't hammer the table
+  // when the same furnisher appears under multiple bureaus.
+  const directRecipientTypes = new Set(['furnisher', 'validation', 'goodwill'])
+  const furnisherCache = new Map()
+  const directRecipientWanted = directRecipientTypes.has(letterType)
+
   for (const agency of agencies) {
     const forBureau = uploadsForAgency(resolvedUploads, agency)
     void (extractedByAgency[agency] || {}) // raw text is intentionally not pasted into letters; PR 3 stores it on credit_reports
@@ -85,6 +94,18 @@ function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAg
       const issueMeta = ISSUES[issue] || { label: issue }
       const issueDetail = issueDetails[issue] || null
 
+      let furnisherAddressLines
+      if (directRecipientWanted) {
+        const creditorName = issueDetail?.creditorName?.trim()
+        if (creditorName) {
+          if (!furnisherCache.has(creditorName)) {
+            const row = await lookupFurnisherAddress(creditorName)
+            furnisherCache.set(creditorName, row ? renderFurnisherAddressLines(row) : null)
+          }
+          furnisherAddressLines = furnisherCache.get(creditorName)
+        }
+      }
+
       const text = buildLetterText({
         type: letterType,
         agency,
@@ -92,6 +113,7 @@ function buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAg
         issueMeta,
         issueDetail,
         forBureau,
+        furnisherAddressLines,
       })
 
       letterList.push({
@@ -191,7 +213,7 @@ export default async function handler(request, response) {
 
     sendEvent(response, { type: 'status', message: 'Drafting dispute letters…' })
 
-    const text = buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
+    const text = await buildDraftPayloadJson(normalizedRequest, resolvedUploads, extractedByAgency)
 
     const parsed = safeJsonParse(text)
     const letters = normalizeLetters(parsed?.letters || [], normalizedRequest.agencies, normalizedRequest.issues)

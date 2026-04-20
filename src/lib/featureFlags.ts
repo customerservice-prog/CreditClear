@@ -131,6 +131,16 @@ export const FEATURE_FLAGS = {
     route: '/pricing',
     icon: '💳',
   },
+  furnisher_lookup: {
+    id: 'furnisher_lookup',
+    label: 'Furnisher mailing-address lookup',
+    status: 'live',
+    description:
+      'Curated directory of consumer-disputes mailing addresses for the most-disputed creditors and collectors. Auto-fills furnisher / validation / goodwill letters so you don\u2019t have to hunt down PO boxes.',
+    eta: '',
+    route: '/letter-types',
+    icon: '\uD83D\uDCEC',
+  },
 } as const satisfies Record<string, FeatureFlag>
 
 export type FeatureId = keyof typeof FEATURE_FLAGS

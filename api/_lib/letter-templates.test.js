@@ -85,6 +85,38 @@ describe('buildLetterText', () => {
     expect(text).toMatch(/Jane Doe/)
     expect(text).not.toMatch(/Capital Bank/)
   })
+
+  it('renders furnisher address when furnisherAddressLines is supplied', () => {
+    const text = buildLetterText({
+      ...baseArgs,
+      type: 'furnisher',
+      furnisherAddressLines: ['Midland Credit Management', 'Attn: Consumer Disputes', 'PO Box 939069', 'San Diego, CA 92193'],
+    })
+    expect(text).toMatch(/Midland Credit Management/)
+    expect(text).toMatch(/PO Box 939069/)
+    expect(text).not.toMatch(/\[Furnisher/)
+  })
+
+  it('renders validation collector address when furnisherAddressLines is supplied', () => {
+    const text = buildLetterText({
+      ...baseArgs,
+      type: 'validation',
+      furnisherAddressLines: ['Portfolio Recovery Associates', 'Attn: Consumer Disputes', '120 Corporate Boulevard', 'Norfolk, VA 23502'],
+    })
+    expect(text).toMatch(/Portfolio Recovery/)
+    expect(text).not.toMatch(/\[Collection agency/)
+  })
+
+  it('renders goodwill creditor address when furnisherAddressLines is supplied', () => {
+    const text = buildLetterText({
+      ...baseArgs,
+      type: 'goodwill',
+      furnisherAddressLines: ['Capital One', 'Attn: Consumer Disputes', 'PO Box 30285', 'Salt Lake City, UT 84130'],
+    })
+    expect(text).toMatch(/Capital One/)
+    expect(text).toMatch(/PO Box 30285/)
+    expect(text).not.toMatch(/\[Original creditor/)
+  })
 })
 
 describe('letterSubject', () => {

@@ -107,6 +107,30 @@ export function buildLetterText(args) {
   }
 }
 
+const PLACEHOLDER_FURNISHER_LINES = [
+  '[Furnisher / Original Creditor name]',
+  "[Furnisher mailing address — confirm at the company's consumer-disputes page]",
+  '[City, State ZIP]',
+]
+const PLACEHOLDER_COLLECTOR_LINES = [
+  '[Collection agency name]',
+  '[Collection agency mailing address]',
+  '[City, State ZIP]',
+]
+const PLACEHOLDER_CREDITOR_LINES = [
+  '[Original creditor name]',
+  'Customer Service / Credit Bureau Reporting',
+  '[Creditor mailing address]',
+  '[City, State ZIP]',
+]
+
+function recipientLinesOrPlaceholder(furnisherAddressLines, fallback) {
+  if (Array.isArray(furnisherAddressLines) && furnisherAddressLines.length > 0) {
+    return furnisherAddressLines
+  }
+  return fallback
+}
+
 export function letterSubject({ type, agency, issueMeta }) {
   const agencyName = AGENCY_NAMES[agency] || agency
   const meta = LETTER_TYPE_META[type] || LETTER_TYPE_META.bureau_initial
@@ -192,16 +216,15 @@ function buildMovLetter({ agency, info, issueMeta, issueDetail }) {
   return joinClean(lines)
 }
 
-function buildFurnisherLetter({ agency, info, issueMeta, issueDetail }) {
+function buildFurnisherLetter({ agency, info, issueMeta, issueDetail, furnisherAddressLines }) {
   const agencyName = AGENCY_NAMES[agency] || agency
+  const recipient = recipientLinesOrPlaceholder(furnisherAddressLines, PLACEHOLDER_FURNISHER_LINES)
   const lines = [
     letterDate(),
     '',
     ...consumerHeader(info),
     '',
-    '[Furnisher / Original Creditor name]',
-    '[Furnisher mailing address — confirm at the company\'s consumer-disputes page]',
-    '[City, State ZIP]',
+    ...recipient,
     '',
     `Re: Direct dispute under FCRA §1681s-2(b) — ${issueMeta.label}`,
     '',
@@ -231,15 +254,14 @@ function buildFurnisherLetter({ agency, info, issueMeta, issueDetail }) {
   return joinClean(lines)
 }
 
-function buildValidationLetter({ info, issueMeta, issueDetail }) {
+function buildValidationLetter({ info, issueMeta, issueDetail, furnisherAddressLines }) {
+  const recipient = recipientLinesOrPlaceholder(furnisherAddressLines, PLACEHOLDER_COLLECTOR_LINES)
   const lines = [
     letterDate(),
     '',
     ...consumerHeader(info),
     '',
-    '[Collection agency name]',
-    '[Collection agency mailing address]',
-    '[City, State ZIP]',
+    ...recipient,
     '',
     `Re: Debt validation request under FDCPA §809 — ${issueMeta.label}`,
     '',
@@ -270,16 +292,14 @@ function buildValidationLetter({ info, issueMeta, issueDetail }) {
   return joinClean(lines)
 }
 
-function buildGoodwillLetter({ info, issueMeta, issueDetail }) {
+function buildGoodwillLetter({ info, issueMeta, issueDetail, furnisherAddressLines }) {
+  const recipient = recipientLinesOrPlaceholder(furnisherAddressLines, PLACEHOLDER_CREDITOR_LINES)
   const lines = [
     letterDate(),
     '',
     ...consumerHeader(info),
     '',
-    '[Original creditor name]',
-    'Customer Service / Credit Bureau Reporting',
-    '[Creditor mailing address]',
-    '[City, State ZIP]',
+    ...recipient,
     '',
     `Re: Goodwill courtesy adjustment request — ${issueMeta.label}`,
     '',
