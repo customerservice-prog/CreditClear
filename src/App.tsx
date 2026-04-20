@@ -577,9 +577,18 @@ function AppRoutes() {
     if (error) {
       captureClientError(error, { flow: 'persist_profile_contact' })
       const raw = 'message' in error && typeof error.message === 'string' ? error.message : ''
-      // Migration/schema errors: treat as non-fatal so the workflow still advances
-      if (/saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')) {
-        return { ok: true, warning: '' }
+      const code = 'code' in error && typeof error.code === 'string' ? error.code : ''
+      const isSchemaIssue = /saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')
+      const isRlsIssue =
+        /row-level security|permission|forbidden/i.test(raw) || code === 'PGRST301' || code === '42501'
+      // Migration / schema / RLS errors: treat as non-fatal so the workflow still advances.
+      // Tell the user once that their data is for this session only until the backend is fixed.
+      if (isSchemaIssue || isRlsIssue) {
+        return {
+          ok: true,
+          warning:
+            'Saved for this session only. Profile persistence is not enabled on the server yet — your details will not pre-fill on your next visit.',
+        }
       }
       const message = `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
       return { ok: false, message }

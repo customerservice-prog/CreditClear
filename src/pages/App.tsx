@@ -547,7 +547,11 @@ function renderWizardStep({
           </button>
           {!canContinueFromPersonal ? (
             <span className="btn-hint">Fill in first name, last name, and a valid email to continue.</span>
-          ) : null}
+          ) : (
+            <span className="btn-hint" style={{ opacity: 0.7 }}>
+              Your details save to your CreditClear profile so you don&apos;t have to retype them next time.
+            </span>
+          )}
         </div>
       </div>
     )
