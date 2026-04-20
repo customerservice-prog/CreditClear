@@ -577,12 +577,11 @@ function AppRoutes() {
     if (error) {
       captureClientError(error, { flow: 'persist_profile_contact' })
       const raw = 'message' in error && typeof error.message === 'string' ? error.message : ''
-      const message =
-        /saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')
-          ? undefined // migration issue: continue silently, admin fix needed server-side
-          : `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
-      // For migration issues, we still advance the step (non-blocking)
-      if (!message) return { ok: true, warning: 'Profile save skipped (DB setup pending).' }
+      // Migration/schema errors: treat as non-fatal so the workflow still advances
+      if (/saved_contact|column|schema|does not exist/i.test(raw) || raw.includes('PGRST')) {
+        return { ok: true, warning: '' }
+      }
+      const message = `Could not save your profile: ${raw || 'Unknown error'}. Try again.`
       return { ok: false, message }
     }
 
