@@ -9,7 +9,16 @@ import { TradelinePicker } from '../components/TradelinePicker'
 import { WaitlistCard } from '../components/WaitlistCard'
 import type { PickableTradeline } from '../hooks/useTradelines'
 import { BUREAU_DISPLAY_LINES } from '../lib/bureauMail'
-import { AGENCIES, GENERATION_PHASES, ISSUES, LETTER_TYPE_OPTIONS, PILLS, STEPS, generationPhaseForMessage } from '../lib/constants'
+import {
+  AGENCIES,
+  BUREAU_LETTER_REQUIREMENTS_HINT,
+  GENERATION_PHASES,
+  ISSUES,
+  LETTER_TYPE_OPTIONS,
+  PILLS,
+  STEPS,
+  generationPhaseForMessage,
+} from '../lib/constants'
 import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import { letterCardElementId } from '../lib/issueActionGuides'
@@ -1042,6 +1051,19 @@ function renderWizardStep({
   return (
     <div className="card">
       <div className="card-t">Upload your credit report (screenshots or files)</div>
+      {bureauOneLetterPerBureau ? (
+        <div
+          className="card-s"
+          style={{
+            background: 'rgba(234, 179, 8, 0.12)',
+            border: '1px solid rgba(234, 179, 8, 0.35)',
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          {BUREAU_LETTER_REQUIREMENTS_HINT}
+        </div>
+      ) : null}
       <div className="card-s">
         Bureau dispute letters require at least one file <strong>labeled</strong> for each bureau you chose (or one Combined file). You already entered account rows on the previous step — those become the bullets in each bureau letter.
         Label each upload for the bureau it belongs to (or Combined). If parsing says it could not detect a bureau, open{' '}

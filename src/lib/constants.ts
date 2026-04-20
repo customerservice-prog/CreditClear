@@ -2,7 +2,14 @@ import type { Agency, AppState, Issue, LetterType } from '../types'
 
 export const STEPS = ['Personal Info', 'Agencies', "Accounts & items you're disputing", 'Upload', 'Letters']
 
-/** Six dispute letter templates the user can choose from on Step 4. */
+/** Shown when bureau letter generation is blocked; step numbers match the wizard header (1-based). */
+export const BUREAU_LETTER_REQUIREMENTS_HINT =
+  'Bureau letters need labeled uploads (Step 4) and a creditor/account row for every category you selected (Step 3). Remove categories you are not disputing or add account details for each.'
+
+export const NON_BUREAU_LETTER_SOURCE_HINT =
+  'Upload at least one file, or enter creditor/account details for at least one selected issue.'
+
+/** Six dispute letter templates; user picks one on the Upload step (same screen as files), before Generate. */
 export const LETTER_TYPE_OPTIONS: Array<{
   id: LetterType
   label: string

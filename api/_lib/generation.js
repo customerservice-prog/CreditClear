@@ -183,7 +183,7 @@ function assertHasLetterSource(fileIds, issueDetails, issues, letterType) {
         const label = ISSUE_LABELS[issue] || issue
         throw new ApiError(
           400,
-          `Each selected category needs at least one creditor/account. Add details for “${label}” or deselect that category.`,
+          `Each selected category needs at least one creditor/account. Add details for “${label}” or deselect that category. Bureau letters also need labeled uploads (Step 4) and a creditor/account row for every selected category (Step 3).`,
         )
       }
     }

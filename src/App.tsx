@@ -6,7 +6,11 @@ import { useSubscriptionContext } from './context/useSubscriptionContext'
 import { createCheckoutRequest, createPortalRequest } from './lib/apiClient'
 import { trackEvent, trackPageView } from './lib/analytics'
 import { streamGeneratedLetters } from './lib/letterStream'
-import { createInitialState } from './lib/constants'
+import {
+  BUREAU_LETTER_REQUIREMENTS_HINT,
+  NON_BUREAU_LETTER_SOURCE_HINT,
+  createInitialState,
+} from './lib/constants'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import { downloadLetterAsPdf } from './lib/downloadLetterPdf'
 import { buildAutoDisputeTitle, buildLetterFileName } from './lib/formatters'
@@ -714,8 +718,8 @@ function AppRoutes() {
     if (!hasLetterGenerationSource(appState.files, appState.issues, appState.issueDetails, appState.letterType)) {
       setBillingMessage(
         appState.letterType === 'bureau_initial' || appState.letterType === 'mov' || appState.letterType === 'cfpb'
-          ? 'Bureau letters need labeled uploads (Step 4) and a creditor/account row for every category you selected (Step 3). Remove categories you are not disputing or add account details for each.'
-          : 'Upload at least one file, or enter creditor/account details for at least one selected issue.',
+          ? BUREAU_LETTER_REQUIREMENTS_HINT
+          : NON_BUREAU_LETTER_SOURCE_HINT,
       )
       return
     }
