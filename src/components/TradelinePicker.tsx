@@ -53,7 +53,26 @@ export function TradelinePicker({
   }
 
   if (tradelines.length === 0) {
-    return null
+    return (
+      <div
+        className="card"
+        style={{
+          marginBottom: 14,
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        <div className="card-t" style={{ marginBottom: 6 }}>
+          No accounts auto-filled from a past PDF parse
+        </div>
+        <div className="card-s" style={{ lineHeight: 1.5 }}>
+          That is normal if this is your first upload or you rely on <em>phone screenshots</em> instead of a downloaded PDF.
+          Fill in the creditor and account fields below from what you see on your report — or skip typing here and add{' '}
+          <em>screenshots or PDFs on the next step</em>; those files count as your source and you can keep these boxes
+          short (for example, creditor name only, or &quot;see uploaded screenshot&quot; where appropriate).
+        </div>
+      </div>
+    )
   }
 
   return (

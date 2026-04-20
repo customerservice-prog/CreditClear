@@ -76,6 +76,13 @@ export function validateUpload(file: File, maxBytes = 10 * 1024 * 1024) {
   return null
 }
 
+/** True for phone screenshots / exports saved as PNG, JPEG, WebP, HEIC, etc. */
+export function isImageUploadMime(mime: string | undefined | null): boolean {
+  return String(mime || '')
+    .toLowerCase()
+    .startsWith('image/')
+}
+
 export function sanitizeUploadFileName(name: string) {
   return (
     name

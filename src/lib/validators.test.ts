@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildSafeUploadPath, sanitizeEditableLetterText, sanitizeUploadFileName } from './validators'
+import {
+  buildSafeUploadPath,
+  isImageUploadMime,
+  sanitizeEditableLetterText,
+  sanitizeUploadFileName,
+} from './validators'
 
 describe('upload path helpers', () => {
   it('sanitizes risky file names', () => {
@@ -11,6 +16,16 @@ describe('upload path helpers', () => {
     expect(path.startsWith('user-123/')).toBe(true)
     expect(path.includes('..')).toBe(false)
     expect(path.includes(' ')).toBe(false)
+  })
+})
+
+describe('isImageUploadMime', () => {
+  it('detects common image MIME types', () => {
+    expect(isImageUploadMime('image/png')).toBe(true)
+    expect(isImageUploadMime('image/jpeg')).toBe(true)
+    expect(isImageUploadMime('IMAGE/WEBP')).toBe(true)
+    expect(isImageUploadMime('application/pdf')).toBe(false)
+    expect(isImageUploadMime('')).toBe(false)
   })
 })
 

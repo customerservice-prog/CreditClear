@@ -5,6 +5,7 @@ import { BureauPullCard } from '../components/BureauPullCard'
 import { parseUploadRequest } from '../lib/apiClient'
 import { listCreditReportsForCurrentUser, type CreditReportSummary } from '../lib/creditReportQueries'
 import { formatDateLabel, formatFileSize, formatReportBureauLabel } from '../lib/formatters'
+import { isImageUploadMime } from '../lib/validators'
 import { requireSupabase } from '../lib/supabaseClient'
 import { deleteUploadForCurrentUser, listUploadsForCurrentUser } from '../lib/uploadQueries'
 import type { AppTab, UploadRecord } from '../types'
@@ -149,13 +150,13 @@ export function CreditReportsPage({
       onHomeClick={onShowHome}
       onSignOut={onSignOut}
       statusLabel={statusLabel}
-      subheading="Every report you upload to CreditClear is listed here. Label each file with the right bureau in the dispute workflow so drafts match the correct report."
+      subheading="Upload phone screenshots, photos, or PDFs from your credit report. Screenshots are first-class — PDFs additionally unlock automatic tradeline extraction when parsed."
       userDisplayName={userDisplayName}
     >
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="card-t">Connect your credit report</div>
         <div className="card-s">
-          Two ways to get your report data into CreditClear. Pick whichever is fastest for you today.
+          Use screenshots from your phone, exports from a bureau app, or a downloaded PDF. Pick whichever is fastest.
         </div>
         <div
           style={{
@@ -173,7 +174,7 @@ export function CreditReportsPage({
             }}
           >
             <div className="card-t" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span>Upload a PDF</span>
+              <span>Upload screenshots or a PDF</span>
               <span
                 style={{
                   fontSize: 11,
@@ -191,8 +192,8 @@ export function CreditReportsPage({
               </span>
             </div>
             <div className="card-s">
-              Drop in a PDF from any bureau, MyFICO, Credit Karma, or annualcreditreport.com. We&apos;ll attach it to
-              your dispute and use the contents when generating letters.
+              PNG, JPG, WebP, HEIC, or PDF — from any bureau site, MyFICO, Credit Karma, or annualcreditreport.com. We attach
+              every file to your dispute. PDFs can be parsed here for tradeline counts; screenshots stay as your visual proof.
             </div>
             <div className="btn-row" style={{ marginTop: 10 }}>
               <button className="btn btn-gold" onClick={() => navigate('/disputes/new')} type="button">
@@ -207,8 +208,7 @@ export function CreditReportsPage({
       <div className="card">
         <div className="card-t">Uploaded reports</div>
         <div className="card-s">
-          These are stored in your private account. Open in a new tab to view (PDF or image), or download a copy. Files come from
-          credit report providers or your own scans—not retrieved automatically from the bureaus by CreditClear.
+          Stored privately in your account. Open or download any file. Images and PDFs you upload yourself are not pulled automatically from the bureaus by CreditClear.
         </div>
         {loading ? (
           <div className="history-list">
@@ -229,12 +229,15 @@ export function CreditReportsPage({
             </div>
           </div>
         ) : rows.length === 0 ? (
-          <div className="disc">No uploads yet. Start a dispute and add credit report files on the upload step—they will appear here.</div>
+          <div className="disc">
+            No uploads yet. Start a dispute and add screenshots or PDFs on the upload step — they will appear here.
+          </div>
         ) : (
           <div className="history-list">
             {rows.map((upload) => {
               const summary = summariesByUpload.get(upload.id)
               const isPdf = upload.mime_type === 'application/pdf'
+              const isImage = isImageUploadMime(upload.mime_type)
               return (
                 <div className="history-card" key={upload.id}>
                   <div className="history-head">
@@ -243,7 +246,13 @@ export function CreditReportsPage({
                       <div className="history-sub">
                         {formatDateLabel(upload.created_at)} · {formatFileSize(upload.file_size)} ·{' '}
                         {formatReportBureauLabel(upload.report_bureau)}
+                        {isImage ? ' · Image / screenshot' : ''}
                       </div>
+                      {isImage ? (
+                        <div className="history-sub" style={{ marginTop: 6, color: 'var(--muted)' }}>
+                          Kept as your exhibit. Tradeline auto-extract requires a text-based PDF — use &quot;Parse&quot; on PDF rows below when available.
+                        </div>
+                      ) : null}
                       {isPdf && (
                         <div
                           className="history-sub"

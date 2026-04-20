@@ -13,7 +13,7 @@ import { AGENCIES, GENERATION_PHASES, ISSUES, LETTER_TYPE_OPTIONS, PILLS, STEPS,
 import { FEATURE_FLAGS } from '../lib/featureFlags'
 import { disputeLetterCount, formatDateLabel } from '../lib/formatters'
 import { letterCardElementId } from '../lib/issueActionGuides'
-import { getPersonalFieldErrors } from '../lib/validators'
+import { getPersonalFieldErrors, isImageUploadMime } from '../lib/validators'
 import type {
   AgencyId,
   AppInfo,
@@ -722,7 +722,8 @@ function renderWizardStep({
       <div className="card">
         <div className="card-t">Accounts &amp; items you&apos;re disputing</div>
         <div className="card-s">
-          Pick the issue types that match what you see on your report, then enter the creditor / account details for each. Each combination of bureau × issue gets its own draft with distinct dispute language.
+          Pick the issue types that match what you see on your credit report (paper, PDF, or phone screenshots). You can type account details below, or rely mainly on <em>uploads on the next step</em> — one clear screenshot per bureau is often enough to pair with these drafts.
+          Each combination of bureau × issue gets its own letter with distinct dispute language.
         </div>
         <TradelinePicker
           error={tradelinesError}
@@ -767,14 +768,14 @@ function renderWizardStep({
                 {selected ? (
                   <div className="idetail">
                     <div className="card-s" style={{ marginBottom: 12, fontSize: 13 }}>
-                      Enter creditor / account details for this issue (required if you skip a credit report upload on the next step).
+                      Enter what you can from your report. If you plan to upload screenshots or a PDF on the next step, you may keep this minimal (for example creditor name and last four) — uploads satisfy the workflow even when fields here are short.
                     </div>
                     <div className="fg">
                       <div className="f sp">
                         <label>Creditor / subscriber name</label>
                         <input
                           onChange={(e) => onIssueDetailChange(issue.id, { creditorName: e.target.value })}
-                          placeholder="e.g., Capital One"
+                          placeholder="As shown on your report or screenshot"
                           value={detail.creditorName}
                         />
                       </div>
@@ -832,25 +833,26 @@ function renderWizardStep({
 
   return (
     <div className="card">
-      <div className="card-t">Upload Your Credit Report</div>
+      <div className="card-t">Upload your credit report (screenshots or files)</div>
       <div className="card-s">
-        <strong>Strongly recommended:</strong> upload the bureau PDF (text-selectable) so we can extract report text into your letters. You must either upload at least one file here <em>or</em> fill in creditor names in the previous step — otherwise generation is blocked. Label each file for the correct bureau (or Combined).{' '}
+        Most people finish this flow with <em>phone screenshots</em> or exports from their bureau site — PDF is optional. Upload at least one file here <em>or</em> make sure you entered creditor names on the previous step; otherwise letter generation is blocked.
+        Label each upload for the bureau it belongs to (or Combined). Downloadable PDFs let us parse tradelines on your Credit Reports page; images are still stored securely and referenced with your dispute.{' '}
         <Link style={{ color: 'var(--gold)' }} to="/credit-reports">
-          View all your saved report uploads
+          View saved uploads
         </Link>
         .
       </div>
       <label className="uz">
         <span className="ui-big">📂</span>
-        <div className="ut">Drop Your Credit Report Here</div>
+        <div className="ut">Drop screenshots or PDFs here</div>
         <div className="us">
-          Not optional if you skip creditor details: upload a bureau PDF here <strong>or</strong> go back and add creditor names on Issues.
+          Camera roll, screen capture, or bureau &quot;download PDF&quot; — all supported up to 10 MB per file.
         </div>
         <div className="utags">
-          <span className="utag">PDF</span>
-          <span className="utag">JPG</span>
-          <span className="utag">PNG</span>
           <span className="utag">Screenshot</span>
+          <span className="utag">Photo</span>
+          <span className="utag">PDF</span>
+          <span className="utag">HEIC</span>
         </div>
         <input accept="image/*,.pdf" multiple onChange={(event) => onAddFiles(event.target.files)} style={{ display: 'none' }} type="file" />
       </label>
@@ -858,7 +860,7 @@ function renderWizardStep({
         {appState.files.map((file, index) => (
           <div className="frow frow-report" key={file.id ?? `${file.name}-${index}`}>
             <div className="frow-main">
-              <span>📄</span>
+              <span aria-hidden="true">{isImageUploadMime(file.type) ? '📷' : '📄'}</span>
               <span className="fn">{file.name}</span>
               <span className="fz">{formatSize(file.size)}</span>
               <button className="frm" onClick={() => onRemoveFile(index)} type="button">
@@ -946,7 +948,7 @@ function renderWizardStep({
       </button>
       <div className="skip-lnk">
         <button onClick={onStartAnalysis} type="button">
-          Generate without uploading — only if you entered creditor details for each issue on Step 3
+          Skip uploads — only if you already entered enough creditor / account detail on the issues step
         </button>
       </div>
       <div className="btn-row">
