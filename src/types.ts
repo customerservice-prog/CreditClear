@@ -186,6 +186,98 @@ export interface DisputeDetail extends DisputeRecord {
   uploads: UploadRecord[]
 }
 
+/**
+ * Source-of-truth tag for how a credit_reports row entered the system.
+ *  - 'upload'     : parsed from a user-uploaded PDF (PR 3)
+ *  - 'aggregator' : pulled from a bureau-aggregator API (PR 4)
+ *  - 'manual'     : hand-entered by the user (fallback path)
+ */
+export type CreditReportSource = 'upload' | 'aggregator' | 'manual'
+
+export type InquiryType = 'hard' | 'soft' | 'unknown'
+
+export type PublicRecordType =
+  | 'bankruptcy'
+  | 'judgment'
+  | 'lien'
+  | 'foreclosure'
+  | 'civil_claim'
+  | 'other'
+
+/** One snapshot of one bureau report for one user. */
+export interface CreditReportRow {
+  id: string
+  user_id: string
+  dispute_id: string | null
+  upload_id: string | null
+  bureau: AgencyId
+  source: CreditReportSource
+  pulled_at: string
+  report_date: string | null
+  /** Full parsed JSON payload from parser/aggregator; source of truth for re-derivation. */
+  raw: Record<string, unknown>
+  created_at: string
+  updated_at?: string
+}
+
+/** One account / tradeline as it appeared on a single bureau report. */
+export interface TradelineRow {
+  id: string
+  report_id: string
+  user_id: string
+  creditor: string | null
+  account_last4: string | null
+  account_type: string | null
+  account_status: string | null
+  payment_status: string | null
+  worst_delinquency: string | null
+  balance_cents: number | null
+  high_balance_cents: number | null
+  credit_limit_cents: number | null
+  past_due_cents: number | null
+  monthly_payment_cents: number | null
+  opened_on: string | null
+  reported_on: string | null
+  closed_on: string | null
+  /** Bureau-provided 24-month payment grid; shape is bureau-specific. */
+  payment_history: unknown[]
+  raw: Record<string, unknown>
+  created_at: string
+}
+
+export interface ReportInquiryRow {
+  id: string
+  report_id: string
+  user_id: string
+  inquirer: string | null
+  inquiry_type: InquiryType | null
+  inquired_on: string | null
+  raw: Record<string, unknown>
+  created_at: string
+}
+
+export interface ReportPublicRecordRow {
+  id: string
+  report_id: string
+  user_id: string
+  record_type: PublicRecordType | null
+  court: string | null
+  reference_number: string | null
+  filed_on: string | null
+  resolved_on: string | null
+  amount_cents: number | null
+  status: string | null
+  raw: Record<string, unknown>
+  created_at: string
+}
+
+/** Convenience shape returned by detail queries that embed children. */
+export interface CreditReportDetail extends CreditReportRow {
+  tradelines: TradelineRow[]
+  inquiries: ReportInquiryRow[]
+  public_records: ReportPublicRecordRow[]
+}
+
 export interface LetterStreamEvent {
   type: 'status' | 'letter' | 'complete' | 'error'
   message?: string
